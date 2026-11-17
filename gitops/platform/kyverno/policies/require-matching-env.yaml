@@ -22,6 +22,10 @@ spec:
         apiVersions: ["*"]
         operations: [CREATE, UPDATE]
         resources: [deployments, statefulsets, daemonsets, services, ingresses, configmaps]
+  matchConditions:
+    # kube-controller-manager creates this ConfigMap in every namespace without labels.
+    - name: not-kube-root-ca
+      expression: "!(request.kind.kind == 'ConfigMap' && object.metadata.name == 'kube-root-ca.crt')"
   variables:
     - name: clusterEnv
       expression: resource.Get("v1", "configmaps", "kube-system", "cluster-identity").data.env

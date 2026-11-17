@@ -3,6 +3,7 @@
 - name: Pre-flight environment guard
   hosts: k8s_cluster
   gather_facts: false
+  any_errors_fatal: true
   roles:
     - preflight
 

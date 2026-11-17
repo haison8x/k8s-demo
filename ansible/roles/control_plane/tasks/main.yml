@@ -1,42 +1,61 @@
 # First control plane: free-IP check, kube-vip, kubeadm init, Calico.
 # Other control planes: kubeadm join, then kube-vip.
-- name: Check whether this node already runs a control plane
+# A node counts as done only when its completion marker exists; the marker is
+# written right after a successful kubeadm init/join, so a failed run is retried.
+- name: Choose this node's completion marker
+  ansible.builtin.set_fact:
+    control_plane_first: "{{ inventory_hostname == groups['control_plane'][0] }}"
+    control_plane_marker: >-
+      /etc/kubernetes/.k8s-demo-{{ 'init' if inventory_hostname == groups['control_plane'][0] else 'join' }}-done
+  tags: [drift]
+
+- name: Recover from an incomplete kubeadm run
+  ansible.builtin.include_tasks: recover.yml
+  when: not ansible_check_mode
+
+- name: Check whether this node finished kubeadm
   ansible.builtin.stat:
-    path: /etc/kubernetes/admin.conf
-  register: control_plane_admin_conf
+    path: "{{ control_plane_marker }}"
+  register: control_plane_done
   tags: [drift]
 
 - name: Check that the VIP and MetalLB addresses are free
   ansible.builtin.include_tasks: free_ip_check.yml
   when:
-    - inventory_hostname == groups['control_plane'][0]
-    - not control_plane_admin_conf.stat.exists
+    - control_plane_first
+    - not control_plane_done.stat.exists
 
 - name: Run kube-vip on the first control plane before init
   ansible.builtin.include_role:
     name: kube_vip
     apply:
       tags: [drift]
-  when: inventory_hostname == groups['control_plane'][0]
+  when: control_plane_first
   tags: [drift]
 
 - name: Initialise the cluster
   ansible.builtin.include_tasks: init.yml
   when:
-    - inventory_hostname == groups['control_plane'][0]
-    - not control_plane_admin_conf.stat.exists
+    - control_plane_first
+    - not control_plane_done.stat.exists
+
+- name: Install Calico if it is missing
+  ansible.builtin.include_tasks: calico.yml
+  when:
+    - control_plane_first
+    - not ansible_check_mode
 
 - name: Create join credentials
   ansible.builtin.include_tasks: join_credentials.yml
   when:
-    - inventory_hostname == groups['control_plane'][0]
+    - control_plane_first
     - not ansible_check_mode
 
 - name: Join the other control planes
   ansible.builtin.include_tasks: join.yml
   when:
-    - inventory_hostname != groups['control_plane'][0]
-    - not control_plane_admin_conf.stat.exists
+    - not control_plane_first
+    - not control_plane_done.stat.exists
     - not ansible_check_mode
 
 - name: Run kube-vip on the other control planes after join
@@ -44,7 +63,7 @@
     name: kube_vip
     apply:
       tags: [drift]
-  when: inventory_hostname != groups['control_plane'][0]
+  when: not control_plane_first
   tags: [drift]
 
 - name: Install the admin kubeconfig
@@ -52,5 +71,5 @@
     file: kubeconfig.yml
     apply:
       tags: [drift]
-  when: inventory_hostname == groups['control_plane'][0]
+  when: control_plane_first
   tags: [drift]

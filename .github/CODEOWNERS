@@ -14,6 +14,7 @@
 /gitops/platform/ @haison8x @haison9x
 /ansible/roles/ @haison8x @haison9x
 /ansible/*.yml @haison8x @haison9x
+/ansible/ansible.cfg @haison8x @haison9x
 /ansible/group_vars/ @haison8x @haison9x
 /.github/ @haison8x @haison9x
 /scripts/ @haison8x @haison9x

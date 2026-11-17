@@ -7,3 +7,16 @@ data:
   ui.bannercontent: STAGING
   ui.bannerpermanent: "true"
   ui.bannerposition: top
+  # Argo CD does not assess Application health by default (since 1.8); without
+  # this, the sync waves of the child Applications would not wait for each other.
+  resource.customizations.health.argoproj.io_Application: |
+    hs = {}
+    hs.status = "Progressing"
+    hs.message = ""
+    if obj.status ~= nil and obj.status.health ~= nil then
+      hs.status = obj.status.health.status
+      if obj.status.health.message ~= nil then
+        hs.message = obj.status.health.message
+      end
+    end
+    return hs

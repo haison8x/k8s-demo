@@ -1,0 +1,37 @@
+# A node without a completion marker but with kubeadm leftovers either is a
+# healthy member (adopt it: write the marker) or an earlier init/join failed
+# half-way (reset it so this run can start again).
+- name: Check for a completion marker
+  ansible.builtin.stat:
+    path: "{{ control_plane_marker }}"
+  register: control_plane_recover_marker
+
+- name: Check for leftovers of an earlier kubeadm run
+  ansible.builtin.stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: control_plane_recover_kubelet_conf
+
+- name: Handle a node without a completion marker
+  when:
+    - not control_plane_recover_marker.stat.exists
+    - control_plane_recover_kubelet_conf.stat.exists
+  block:
+    - name: Check whether this node is a Ready cluster member
+      ansible.builtin.command: >-
+        kubectl --kubeconfig /etc/kubernetes/kubelet.conf get node {{ inventory_hostname }}
+        -o jsonpath={.status.conditions[?(@.type=="Ready")].status}
+      register: control_plane_recover_ready
+      changed_when: false
+      failed_when: false
+
+    - name: Adopt a healthy node that has no completion marker
+      ansible.builtin.file:
+        path: "{{ control_plane_marker }}"
+        state: touch
+        mode: "0644"
+      when: control_plane_recover_ready.stdout == "True"
+
+    - name: Clean up an incomplete kubeadm run
+      ansible.builtin.command: kubeadm reset -f
+      when: control_plane_recover_ready.stdout != "True"
+      changed_when: true

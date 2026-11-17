@@ -48,6 +48,21 @@
         KUBECONFIG: /etc/kubernetes/admin.conf
       changed_when: false
 
+# The generated initial secret exists until the admin password has been set,
+# so a failed attempt is retried on the next run.
+- name: Check whether the admin password still has to be set
+  ansible.builtin.command: kubectl -n argocd get secret argocd-initial-admin-secret
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: argocd_bootstrap_initial_secret
+  changed_when: false
+  failed_when: false
+
+- name: Replace the generated admin password
+  when:
+    - argocd_bootstrap_initial_secret.rc == 0
+    - argocd_bootstrap_admin_password | length > 0
+  block:
     - name: Set the Argo CD admin password
       ansible.builtin.command:
         argv:
@@ -65,7 +80,6 @@
                                'admin.passwordMtime': now(utc=true).strftime('%Y-%m-%dT%H:%M:%SZ')}} | to_json }}
       environment:
         KUBECONFIG: /etc/kubernetes/admin.conf
-      when: argocd_bootstrap_admin_password is defined and argocd_bootstrap_admin_password | length > 0
       changed_when: true
       no_log: true
 
@@ -73,7 +87,6 @@
       ansible.builtin.command: kubectl -n argocd delete secret argocd-initial-admin-secret --ignore-not-found
       environment:
         KUBECONFIG: /etc/kubernetes/admin.conf
-      when: argocd_bootstrap_admin_password is defined and argocd_bootstrap_admin_password | length > 0
       changed_when: true
 
 - name: Write the root Application

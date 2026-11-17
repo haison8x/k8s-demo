@@ -9,6 +9,7 @@ resources:
   - resources/good-prod.yaml
   - resources/bad-dev-in-prod.yaml
   - resources/unlabelled.yaml
+  - resources/kube-root-ca.yaml
 context: context.yaml
 variables: values.yaml
 results:
@@ -27,3 +28,8 @@ results:
     resources: [unlabelled]
     kind: Deployment
     result: fail
+  - isValidatingPolicy: true
+    policy: require-matching-env
+    resources: [kube-root-ca.crt]
+    kind: ConfigMap
+    result: skip

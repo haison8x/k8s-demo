@@ -84,7 +84,7 @@ ruleset='{"name":"main-protection","target":"branch","enforcement":"active",
 "conditions":{"ref_name":{"include":["~DEFAULT_BRANCH"],"exclude":[]}},
 "rules":[{"type":"deletion"},{"type":"non_fast_forward"},
 {"type":"pull_request","parameters":{"required_approving_review_count":0,"require_code_owner_review":true,
-"dismiss_stale_reviews_on_push":true,"require_last_push_approval":true,"required_review_thread_resolution":false}},
+"dismiss_stale_reviews_on_push":true,"require_last_push_approval":false,"required_review_thread_resolution":false}},
 {"type":"required_status_checks","parameters":{"strict_required_status_checks_policy":false,
 "required_status_checks":[{"context":"validate"}]}}]}'
 ruleset=$(tr -d '\n' <<<"$ruleset")
@@ -97,6 +97,14 @@ if [ -n "$existing" ]; then
 else
   api POST "repos/$REPO/rulesets" "$ruleset"
 fi
+
+echo "== Code owners need write access to count as reviewers"
+for r in "${REVIEWERS[@]}"; do
+  if [ "$r" != "${REPO%%/*}" ]; then
+    api PUT "repos/$REPO/collaborators/$r" '{"permission":"push"}'
+    echo "   $r must accept the invitation (github.com/$REPO/invitations)"
+  fi
+done
 
 echo "== Environments"
 reviewers_json=""

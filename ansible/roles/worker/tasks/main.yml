@@ -1,6 +1,46 @@
+# A worker counts as joined only when its completion marker exists; the marker
+# is written right after a successful kubeadm join, so a failed join is retried.
+- name: Check for a completion marker
+  ansible.builtin.stat:
+    path: /etc/kubernetes/.k8s-demo-join-done
+  register: worker_marker
+
+- name: Check for leftovers of an earlier kubeadm run
+  ansible.builtin.stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: worker_kubelet_conf
+
+- name: Handle a node without a completion marker
+  when:
+    - not ansible_check_mode
+    - not worker_marker.stat.exists
+    - worker_kubelet_conf.stat.exists
+  block:
+    - name: Check whether this node is a Ready cluster member
+      ansible.builtin.command: >-
+        kubectl --kubeconfig /etc/kubernetes/kubelet.conf get node {{ inventory_hostname }}
+        -o jsonpath={.status.conditions[?(@.type=="Ready")].status}
+      register: worker_ready
+      changed_when: false
+      failed_when: false
+
+    - name: Adopt a healthy node that has no completion marker
+      ansible.builtin.file:
+        path: /etc/kubernetes/.k8s-demo-join-done
+        state: touch
+        mode: "0644"
+      when: worker_ready.stdout == "True"
+
+    - name: Clean up an incomplete kubeadm run
+      ansible.builtin.command: kubeadm reset -f
+      when: worker_ready.stdout != "True"
+      changed_when: true
+
 - name: Join this node as a worker
-  ansible.builtin.command: "{{ hostvars[groups['control_plane'][0]].control_plane_join_command }}"
+  ansible.builtin.shell: >-
+    {{ hostvars[groups['control_plane'][0]].control_plane_join_command }}
+    && touch /etc/kubernetes/.k8s-demo-join-done
   args:
-    creates: /etc/kubernetes/kubelet.conf
+    creates: /etc/kubernetes/.k8s-demo-join-done
   when: not ansible_check_mode
   no_log: true

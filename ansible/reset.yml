@@ -36,10 +36,13 @@
         - /root/.kube
         - "/home/{{ ansible_user }}/.kube"
         - "{{ env_marker_path }}"
+        - /etc/kubernetes/.k8s-demo-init-done
+        - /etc/kubernetes/.k8s-demo-join-done
 
     - name: Flush iptables rules left by kube-proxy and Calico
       ansible.builtin.shell: |
         set -e
+        iptables -P INPUT ACCEPT; iptables -P FORWARD ACCEPT; iptables -P OUTPUT ACCEPT
         for table in filter nat mangle raw; do iptables -t "$table" -F; iptables -t "$table" -X; done
       args:
         executable: /bin/bash
