@@ -1,0 +1,10 @@
+# F5 NGINX Ingress Controller: settings shared by every environment.
+controller:
+  replicaCount: 2
+  ingressClass:
+    name: nginx
+    create: true
+    setAsDefaultIngress: true
+  service:
+    type: LoadBalancer
+    externalTrafficPolicy: Local

@@ -81,6 +81,21 @@ def build_tree(root, overrides=None):
                         - name: NO_PROXY
                           value: {no_proxy(env)},argocd-repo-server
             """)
+        write(root, f"gitops/platform/metallb/config/overlays/{env}/ip-pool.yaml", f"""
+            apiVersion: metallb.io/v1beta1
+            kind: IPAddressPool
+            metadata:
+              name: demo-pool
+            spec:
+              addresses:
+                - {net}.200-{net}.229
+            """)
+        write(root, f"gitops/platform/nginx-ingress/values-{env}.yaml", f"""
+            controller:
+              service:
+                annotations:
+                  metallb.io/loadBalancerIPs: {net}.200
+            """)
         write(root, f"gitops/platform/argocd/overlays/{env}/ingress.yaml", f"""
             apiVersion: networking.k8s.io/v1
             kind: Ingress
@@ -151,6 +166,23 @@ class CheckTreeTest(unittest.TestCase):
         res = run_guard(self.root)
         self.assertNotEqual(res.returncode, 0)
         self.assertIn("automated prune and selfHeal", res.stdout)
+
+
+    def test_metallb_pool_of_another_environment_fails(self):
+        build_tree(self.root)
+        p = self.root / "gitops/platform/metallb/config/overlays/staging/ip-pool.yaml"
+        p.write_text(p.read_text().replace("172.20.1.", "172.20.0."), newline="\n")
+        res = run_guard(self.root)
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("staging: MetalLB pool", res.stdout)
+
+    def test_ingress_load_balancer_ip_mismatch_fails(self):
+        build_tree(self.root)
+        p = self.root / "gitops/platform/nginx-ingress/values-prod.yaml"
+        p.write_text(p.read_text().replace("172.20.0.200", "172.20.0.201"), newline="\n")
+        res = run_guard(self.root)
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("prod: ingress loadBalancerIPs", res.stdout)
 
 
 class RealTreeTest(unittest.TestCase):

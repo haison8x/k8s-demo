@@ -102,6 +102,21 @@ def check_proxy(root, env, inv, problems):
                     problems.append(f"{env}: NO_PROXY in {f.name} is missing {sorted(missing)}")
 
 
+def check_addresses(root, env, inv, problems):
+    want_pool = f"{inv['metallb_range_start']}-{inv['metallb_range_end']}"
+    pool_file = root / "gitops/platform/metallb/config/overlays" / env / "ip-pool.yaml"
+    if pool_file.exists():
+        addresses = load_all(pool_file)[0]["spec"]["addresses"]
+        if addresses != [want_pool]:
+            problems.append(f"{env}: MetalLB pool {addresses} does not match inventory range {want_pool}")
+    values_file = root / "gitops/platform/nginx-ingress" / f"values-{env}.yaml"
+    if values_file.exists():
+        ann = load_all(values_file)[0]["controller"]["service"]["annotations"]
+        ip = ann.get("metallb.io/loadBalancerIPs")
+        if ip != inv["ingress_ip"]:
+            problems.append(f"{env}: ingress loadBalancerIPs {ip} does not match inventory ingress_ip {inv['ingress_ip']}")
+
+
 def check_tree(root):
     problems = []
     for env in ENVS:
@@ -111,6 +126,7 @@ def check_tree(root):
         check_applications(root, env, problems)
         check_ingress_hosts(root, env, inv, problems)
         check_proxy(root, env, inv, problems)
+        check_addresses(root, env, inv, problems)
     return problems
 
 

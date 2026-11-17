@@ -1,0 +1,7 @@
+# Addresses are set per environment in overlays/<env>/ip-pool.yaml.
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: demo-pool
+spec:
+  addresses: []

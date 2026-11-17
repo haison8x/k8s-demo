@@ -1,0 +1,5 @@
+# Must match ingress_ip in ansible/inventories/staging/group_vars/all.yml.
+controller:
+  service:
+    annotations:
+      metallb.io/loadBalancerIPs: 172.20.1.200

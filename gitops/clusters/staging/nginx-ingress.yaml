@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nginx-ingress
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: default
+  sources:
+    - repoURL: https://helm.nginx.com/stable
+      chart: nginx-ingress
+      targetRevision: 2.8.1
+      helm:
+        releaseName: nginx-ingress
+        valueFiles:
+          - $values/gitops/platform/nginx-ingress/values.yaml
+          - $values/gitops/platform/nginx-ingress/values-staging.yaml
+    - repoURL: https://github.com/haison8x/k8s-demo.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nginx-ingress
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

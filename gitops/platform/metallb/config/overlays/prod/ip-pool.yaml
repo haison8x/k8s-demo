@@ -1,0 +1,9 @@
+# Must match metallb_range_start/end in ansible/inventories/prod/group_vars/all.yml.
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: demo-pool
+  namespace: metallb-system
+spec:
+  addresses:
+    - 172.20.0.200-172.20.0.229
