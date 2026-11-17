@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>k8s-demo guide</title>
+<meta name="description" content="How the k8s-demo repository builds and runs three Kubernetes clusters with Ansible and Argo CD.">
+<style>
+  :root {
+    --bg: #f7f8fa; --surface: #ffffff; --text: #1d2330; --muted: #5b6475; --border: #dde2ea;
+    --accent: #2563eb; --accent-soft: #e8efff; --code-bg: #f0f2f6;
+    --dev: #2e7d32; --staging: #b7791f; --prod: #c62828;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f141b; --surface: #171d26; --text: #e4e8ef; --muted: #9aa4b5; --border: #2a3340;
+      --accent: #7aa2ff; --accent-soft: #1e2a44; --code-bg: #1d2430;
+      --dev: #66bb6a; --staging: #f2b84b; --prod: #ef6461;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.6;
+         font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  a { color: var(--accent); }
+  header.top { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
+  header.top .inner { max-width: 1040px; margin: 0 auto; padding: 10px 16px; display: flex; gap: 16px;
+                      align-items: center; flex-wrap: wrap; }
+  header.top strong { font-size: 17px; }
+  nav { display: flex; gap: 4px 14px; flex-wrap: wrap; font-size: 14px; }
+  nav a { color: var(--muted); text-decoration: none; }
+  nav a:hover { color: var(--accent); }
+  main { max-width: 1040px; margin: 0 auto; padding: 8px 16px 64px; }
+  section { padding-top: 24px; }
+  h1 { font-size: clamp(28px, 5vw, 40px); line-height: 1.2; margin: 24px 0 8px; }
+  h2 { font-size: 24px; margin: 24px 0 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+  h3 { font-size: 18px; margin: 20px 0 6px; }
+  .lead { font-size: 18px; color: var(--muted); max-width: 760px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 16px 0; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+  .card h3 { margin: 0 0 4px; font-size: 16px; }
+  .card p { margin: 0; color: var(--muted); font-size: 15px; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); margin: 12px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { background: var(--code-bg); font-weight: 600; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  code { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: .92em;
+         background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+  pre { position: relative; background: var(--code-bg); border: 1px solid var(--border); border-radius: 10px;
+        padding: 12px 14px; overflow-x: auto; font-size: 14px; line-height: 1.5; }
+  pre code { background: none; padding: 0; overflow-wrap: normal; }
+  .copy { position: absolute; top: 6px; right: 6px; font: 12px system-ui, sans-serif; color: var(--muted);
+          background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+  .copy:hover { color: var(--accent); }
+  ol.steps { padding-left: 0; list-style: none; counter-reset: step; }
+  ol.steps > li { counter-increment: step; position: relative; padding: 4px 0 8px 44px; }
+  ol.steps > li::before { content: counter(step); position: absolute; left: 0; top: 4px; width: 30px; height: 30px;
+                          border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 700;
+                          display: flex; align-items: center; justify-content: center; }
+  .pill { display: inline-block; padding: 0 10px; border-radius: 999px; font-size: 13px; font-weight: 600; color: #fff; }
+  .pill.dev { background: var(--dev); } .pill.staging { background: var(--staging); } .pill.prod { background: var(--prod); }
+  .note { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 10px 14px; border-radius: 6px; margin: 12px 0; }
+  figure { margin: 16px 0; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px;
+           overflow-x: auto; }
+  figure svg { width: 100%; min-width: 640px; height: auto; display: block; }
+  td code { overflow-wrap: normal; white-space: nowrap; }
+  figcaption { color: var(--muted); font-size: 14px; margin-top: 6px; }
+  .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
+  .flow span.step { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 14px; }
+  .flow span.arrow { color: var(--muted); }
+  footer { color: var(--muted); font-size: 14px; border-top: 1px solid var(--border); margin-top: 40px; padding-top: 16px; }
+  svg text { font-family: system-ui, sans-serif; fill: var(--text); }
+  svg .box { fill: var(--surface); stroke: var(--border); stroke-width: 1.5; }
+  svg .accent { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+  svg .line { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+  svg .muted { fill: var(--muted); }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="inner">
+    <strong>k8s-demo</strong>
+    <nav aria-label="Sections">
+      <a href="#overview">Overview</a><a href="#architecture">Architecture</a><a href="#environments">Environments</a>
+      <a href="#setup">Setup</a><a href="#operations">Operations</a><a href="#promotion">Promotion</a>
+      <a href="#guard-rails">Guard rails</a><a href="#demo">Demo</a><a href="#troubleshooting">Troubleshooting</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+<section id="overview">
+  <h1>Three Kubernetes clusters, run from Git</h1>
+  <p class="lead">This repository builds a <span class="pill dev">dev</span> <span class="pill staging">staging</span>
+    <span class="pill prod">prod</span> set of on-premises Kubernetes clusters and everything that runs on them.
+    After a one-time setup, every change is a pull request.</p>
+  <div class="cards">
+    <div class="card"><h3>Ansible</h3><p>Builds each cluster with kubeadm: HA control plane behind a kube-vip address, Calico networking. Runs from GitHub Actions on a runner inside the LAN.</p></div>
+    <div class="card"><h3>Argo CD</h3><p>One per cluster. Reconciles MetalLB, F5 NGINX Ingress, Kyverno, itself and the demo app from <code>gitops/clusters/&lt;env&gt;</code>.</p></div>
+    <div class="card"><h3>Promotion</h3><p>A button copies the release from dev to staging, or staging to prod, as a pull request that a second person approves.</p></div>
+    <div class="card"><h3>Guard rails</h3><p>Separate subnets, pre-flight checks, CI cross-checks and a cluster policy make it hard to touch the wrong environment.</p></div>
+  </div>
+  <p>The demo app is nginx showing <strong>K8s Demo</strong>, the environment, the release version and the pod that answered:
+    <code>http://dev.k8sdemo.vn</code>, <code>http://staging.k8sdemo.vn</code>, <code>http://k8sdemo.vn</code>.</p>
+</section>
+
+<section id="architecture">
+  <h2>Architecture</h2>
+  <figure>
+    <svg viewBox="0 0 960 420" role="img" aria-labelledby="arch-title">
+      <title id="arch-title">GitHub drives Ansible through the ops runner and each cluster's Argo CD pulls from GitHub</title>
+      <rect class="accent" x="330" y="16" width="300" height="64" rx="10"/>
+      <text x="480" y="44" text-anchor="middle" font-size="17" font-weight="700">GitHub: haison8x/k8s-demo</text>
+      <text x="480" y="66" text-anchor="middle" font-size="13" class="muted">branch main · pull requests · Actions</text>
+
+      <rect class="box" x="24" y="130" width="250" height="74" rx="10"/>
+      <text x="149" y="158" text-anchor="middle" font-size="15" font-weight="600">validate</text>
+      <text x="149" y="180" text-anchor="middle" font-size="12" class="muted">GitHub-hosted · every pull request</text>
+      <text x="149" y="196" text-anchor="middle" font-size="12" class="muted">lint · schemas · policy · env guard</text>
+
+      <rect class="box" x="355" y="130" width="250" height="74" rx="10"/>
+      <text x="480" y="158" text-anchor="middle" font-size="15" font-weight="600">ansible · drift</text>
+      <text x="480" y="180" text-anchor="middle" font-size="12" class="muted">self-hosted runner ops1</text>
+      <text x="480" y="196" text-anchor="middle" font-size="12" class="muted">172.20.9.5 · button / nightly</text>
+
+      <rect class="box" x="686" y="130" width="250" height="74" rx="10"/>
+      <text x="811" y="158" text-anchor="middle" font-size="15" font-weight="600">promote</text>
+      <text x="811" y="180" text-anchor="middle" font-size="12" class="muted">GitHub App bot</text>
+      <text x="811" y="196" text-anchor="middle" font-size="12" class="muted">opens a pull request</text>
+
+      <path class="line" d="M400 80 L149 130"/><path class="line" d="M480 80 L480 130"/><path class="line" d="M560 80 L811 130"/>
+
+      <rect class="box" x="24" y="290" width="290" height="110" rx="10"/>
+      <text x="169" y="316" text-anchor="middle" font-size="15" font-weight="700" style="fill: var(--dev)">dev · 172.20.2.0/24</text>
+      <text x="169" y="340" text-anchor="middle" font-size="12" class="muted">1 control plane · 1 worker</text>
+      <text x="169" y="360" text-anchor="middle" font-size="12" class="muted">Argo CD · MetalLB · NGINX · Kyverno</text>
+      <text x="169" y="384" text-anchor="middle" font-size="12">ingress 172.20.2.200</text>
+
+      <rect class="box" x="335" y="290" width="290" height="110" rx="10"/>
+      <text x="480" y="316" text-anchor="middle" font-size="15" font-weight="700" style="fill: var(--staging)">staging · 172.20.1.0/24</text>
+      <text x="480" y="340" text-anchor="middle" font-size="12" class="muted">3 control planes · 2 workers</text>
+      <text x="480" y="360" text-anchor="middle" font-size="12" class="muted">Argo CD · MetalLB · NGINX · Kyverno</text>
+      <text x="480" y="384" text-anchor="middle" font-size="12">ingress 172.20.1.200</text>
+
+      <rect class="box" x="646" y="290" width="290" height="110" rx="10"/>
+      <text x="791" y="316" text-anchor="middle" font-size="15" font-weight="700" style="fill: var(--prod)">prod · 172.20.0.0/24</text>
+      <text x="791" y="340" text-anchor="middle" font-size="12" class="muted">3 control planes · 3 workers</text>
+      <text x="791" y="360" text-anchor="middle" font-size="12" class="muted">Argo CD · MetalLB · NGINX · Kyverno</text>
+      <text x="791" y="384" text-anchor="middle" font-size="12">ingress 172.20.0.200</text>
+
+      <path class="line" d="M480 204 L169 290"/><path class="line" d="M480 204 L480 290"/><path class="line" d="M480 204 L791 290"/>
+      <text x="200" y="244" font-size="12" class="muted">SSH (Ansible)</text>
+      <path class="line" stroke-dasharray="5 5" d="M640 48 C 930 48, 950 230, 900 290"/>
+      <text x="660" y="32" font-size="12" class="muted">Argo CD in each cluster pulls Git via the proxy</text>
+    </svg>
+    <figcaption>Ansible is pushed from the runner when someone presses a button; everything inside the clusters is pulled by each cluster's own Argo CD.</figcaption>
+  </figure>
+  <div class="table-wrap"><table>
+    <tr><th>Layer</th><th>Lives in</th><th>Applied by</th><th>Trigger</th></tr>
+    <tr><td>Nodes, kubeadm, kube-vip, Calico, first Argo CD install, cluster identity</td><td><code>ansible/</code></td><td>Ansible on the ops runner</td><td><b>ansible</b> workflow; prod waits for approval</td></tr>
+    <tr><td>Everything inside a cluster, including Argo CD itself</td><td><code>gitops/</code></td><td>that cluster's Argo CD</td><td>merge to <code>main</code></td></tr>
+    <tr><td>Node drift detection</td><td><code>ansible/</code> in check mode</td><td>ops runner</td><td><b>drift</b> workflow, nightly 02:00</td></tr>
+    <tr><td>GitHub settings</td><td><code>scripts/github-setup.sh</code></td><td>the owner</td><td>once</td></tr>
+  </table></div>
+</section>
+
+<section id="environments">
+  <h2>Environments</h2>
+  <div class="table-wrap"><table>
+    <tr><th></th><th><span class="pill dev">dev</span></th><th><span class="pill staging">staging</span></th><th><span class="pill prod">prod</span></th></tr>
+    <tr><td>Subnet</td><td>172.20.2.0/24</td><td>172.20.1.0/24</td><td>172.20.0.0/24</td></tr>
+    <tr><td>Control planes</td><td>dev-cp1 .5</td><td>stg-cp1..3 .5–.7</td><td>prod-cp1..3 .5–.7</td></tr>
+    <tr><td>Workers</td><td>dev-worker1 .6</td><td>stg-worker1..2 .8–.9</td><td>prod-worker1..3 .8–.10</td></tr>
+    <tr><td>API VIP (kube-vip)</td><td>172.20.2.100</td><td>172.20.1.100</td><td>172.20.0.100</td></tr>
+    <tr><td>MetalLB pool</td><td>172.20.2.200–229</td><td>172.20.1.200–229</td><td>172.20.0.200–229</td></tr>
+    <tr><td>Ingress IP</td><td>172.20.2.200</td><td>172.20.1.200</td><td>172.20.0.200</td></tr>
+    <tr><td>Demo app</td><td>dev.k8sdemo.vn</td><td>staging.k8sdemo.vn</td><td>k8sdemo.vn</td></tr>
+    <tr><td>Argo CD</td><td>argocd.dev.k8sdemo.vn</td><td>argocd.staging.k8sdemo.vn</td><td>argocd.k8sdemo.vn</td></tr>
+    <tr><td>Demo replicas</td><td>1</td><td>2</td><td>3</td></tr>
+  </table></div>
+  <p>Every cluster uses pod CIDR <code>10.244.0.0/16</code> and service CIDR <code>10.96.0.0/12</code> (the office LAN uses 192.168.x.x).
+     Outbound traffic goes through <code>proxy.mycompany.com:3128</code>. Server VLANs use static addresses only, with no DHCP.
+     The ops runner ops1 is at <code>172.20.9.5</code>. All values live in <code>ansible/inventories/&lt;env&gt;/group_vars/all.yml</code>
+     and the matching overlays; CI fails if the two disagree.</p>
+</section>
+
+<section id="setup">
+  <h2>One-time setup</h2>
+  <div class="note">Work from WSL or Linux, in a clone inside your Linux home directory. Ansible ignores <code>ansible.cfg</code> in
+    world-writable folders such as <code>/mnt/c</code>, and SSH refuses keys with open permissions.</div>
+  <ol class="steps">
+    <li><b>Servers and network.</b> Ubuntu 24.04 everywhere, addresses as in the table, user <code>haison</code> with passwordless sudo.
+      Add <code>~/.ssh/k8s-demo/&lt;env&gt;.pub</code> to <code>~haison/.ssh/authorized_keys</code> on that environment's servers
+      (<code>ops.pub</code> on ops1). Firewall: dev and staging cannot reach prod; ops1 reaches every subnet on SSH; the presenter laptop
+      reaches each ingress IP on port 80 and the prod VIP on 6443.</li>
+    <li><b>GitHub App.</b> Create <code>k8s-demo-promoter</code> (Settings → Developer settings → GitHub Apps) with repository permissions
+      <i>Contents</i> and <i>Pull requests</i> set to read and write. Install it on this repository, note the Client ID and download a private key.</li>
+    <li><b>GitHub settings.</b> Run once as a repository admin:
+<pre><code>gh auth login
+bash scripts/github-setup.sh --promoter-client-id &lt;CLIENT_ID&gt; --promoter-key-file &lt;key.pem&gt;</code></pre>
+      It creates the ruleset on <code>main</code>, the environments (<code>dev</code>, <code>staging</code>, <code>prod</code> and their <code>-drift</code> twins),
+      their secrets and GitHub Pages, and prints each Argo CD admin password once. Add <code>--dry-run</code> to preview.</li>
+    <li><b>Runner.</b> Install the toolchain and register ops1 as the self-hosted runner:
+<pre><code>bash scripts/install-tools.sh
+export PATH="$HOME/.venvs/k8s-demo/bin:$HOME/.local/bin:$PATH"
+ansible-playbook -i ansible/inventories/ops/hosts.yml ansible/ops.yml --private-key ~/.ssh/k8s-demo/ops \
+  -e runner_registration_token=$(gh api -X POST repos/haison8x/k8s-demo/actions/runners/registration-token --jq .token)</code></pre></li>
+    <li><b>Build the clusters.</b> Actions → <b>ansible</b> → Run workflow: env <code>dev</code>, playbook <code>site</code>.
+      Then <code>staging</code>, then <code>prod</code>; the prod run waits for an approval. The first run checks that the VIP and the
+      MetalLB pool are unused before <code>kubeadm init</code>.</li>
+    <li><b>Name resolution</b> on the presenter laptop (<code>C:\Windows\System32\drivers\etc\hosts</code>) or in LAN DNS:
+<pre><code>172.20.2.200 dev.k8sdemo.vn argocd.dev.k8sdemo.vn
+172.20.1.200 staging.k8sdemo.vn argocd.staging.k8sdemo.vn
+172.20.0.200 k8sdemo.vn argocd.k8sdemo.vn</code></pre></li>
+    <li><b>kubectl</b> (optional). Each environment gets its own file, never merged into <code>~/.kube/config</code>:
+<pre><code>scripts/get-kubeconfig.sh prod
+export KUBECONFIG=~/.kube/k8s-demo-prod.kubeconfig
+kubectl get nodes</code></pre></li>
+  </ol>
+</section>
+
+<section id="operations">
+  <h2>Everyday operations</h2>
+  <div class="table-wrap"><table>
+    <tr><th>I want to…</th><th>Do this</th><th>What happens</th></tr>
+    <tr><td>Change the app in dev</td><td>Edit <code>gitops/apps/demo-app/overlays/dev/release.yaml</code> (version, message, image) and open a PR</td><td>CI validates; after merge, dev's Argo CD rolls it out within minutes</td></tr>
+    <tr><td>Promote a release</td><td>Actions → <b>promote</b> → <code>dev-to-staging</code> or <code>staging-to-prod</code></td><td>The bot opens a PR; a code owner approves; merging deploys</td></tr>
+    <tr><td>Change environment settings</td><td>Edit <code>overlays/&lt;env&gt;/env.yaml</code> (replicas, host, banner colour)</td><td>Never copied by promotion</td></tr>
+    <tr><td>Upgrade a platform component</td><td>Change its version in <code>gitops/clusters/dev/…</code>; then staging; then prod — one PR each</td><td>That cluster's Argo CD upgrades it</td></tr>
+    <tr><td>Add a node</td><td>Add it to <code>ansible/inventories/&lt;env&gt;/hosts.yml</code>, merge, run <b>ansible</b> with limit <code>&lt;first control plane&gt;,&lt;new node&gt;</code></td><td>The node joins (the first control plane issues the join token)</td></tr>
+    <tr><td>Rebuild an environment</td><td><b>ansible</b> with playbook <code>reset</code> and confirm = the env name, then <code>site</code></td><td>The cluster is wiped and rebuilt from Git</td></tr>
+    <tr><td>Investigate drift</td><td>Open the failed <b>drift</b> run; the diff shows what changed on which node</td><td>Re-run <b>ansible</b> <code>site</code>, or put the change in Git</td></tr>
+  </table></div>
+  <p>Component versions are listed in <code>docs/VERSIONS.md</code>.</p>
+</section>
+
+<section id="promotion">
+  <h2>Promotion</h2>
+  <p>Each environment's overlay has two files. <code>env.yaml</code> holds what belongs to the environment and is never promoted.
+    <code>release.yaml</code> holds what is being released — the image, <code>APP_VERSION</code> and <code>APP_MESSAGE</code> — and is copied
+    unchanged from one environment to the next.</p>
+  <div class="flow">
+    <span class="step">Edit dev <code>release.yaml</code></span><span class="arrow">→</span>
+    <span class="step">PR · CI green · merge</span><span class="arrow">→</span>
+    <span class="step">dev updates</span><span class="arrow">→</span>
+    <span class="step"><b>promote</b> dev-to-staging</span><span class="arrow">→</span>
+    <span class="step">bot PR · code owner approves</span><span class="arrow">→</span>
+    <span class="step">staging updates</span><span class="arrow">→</span>
+    <span class="step"><b>promote</b> staging-to-prod</span><span class="arrow">→</span>
+    <span class="step">prod updates</span>
+  </div>
+  <p>Changes to <code>base/</code>, <code>gitops/platform/</code>, roles or workflows reach every environment at once, so they always need a
+    code owner review. Keep anything that should roll out gradually in <code>release.yaml</code> or in the per-environment Application files.</p>
+</section>
+
+<section id="guard-rails">
+  <h2>Guard rails against touching the wrong environment</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Layer</th><th>Protection</th></tr>
+    <tr><td>Network</td><td>One subnet per environment; dev and staging cannot reach prod; static addresses only.</td></tr>
+    <tr><td>Ansible</td><td>No default inventory. A pre-flight check refuses to run when the inventory folder, the host subnet and the
+      <code>/etc/k8s-demo/env</code> marker on the node disagree. A free-IP check runs before the first <code>kubeadm init</code>.
+      Reset requires typing the environment name.</td></tr>
+    <tr><td>Credentials</td><td>One SSH key per environment, stored in that GitHub environment. Prod runs need an approval.
+      Nothing secret is printed in the public workflow logs.</td></tr>
+    <tr><td>Visibility</td><td>Hostnames carry the environment (<code>prod-cp1</code>); one kubeconfig file and context per environment;
+      a permanent Argo CD banner; the page banner shows the environment in its colour.</td></tr>
+    <tr><td>Cluster</td><td>A Kyverno policy, identical everywhere, rejects resources labelled for another environment. It reads the
+      environment from <code>kube-system/cluster-identity</code>, written by Ansible — two independent sources that must agree.</td></tr>
+    <tr><td>Git and CI</td><td>One pull request may change one environment. <code>scripts/env-guard.py</code> checks hosts, IPs, proxy
+      settings and Application paths against each inventory. CODEOWNERS and a ruleset protect staging, prod and shared paths.</td></tr>
+  </table></div>
+</section>
+
+<section id="demo">
+  <h2>Demo runbook</h2>
+  <ol class="steps">
+    <li><b>The three clusters.</b> Open <code>http://argocd.dev.k8sdemo.vn</code>, <code>http://argocd.staging.k8sdemo.vn</code> and
+      <code>http://argocd.k8sdemo.vn</code>: every application is Synced and Healthy; note the environment banners.</li>
+    <li><b>The app.</b> Open the three app URLs. Refresh prod a few times: the pod name changes between three pods on three workers.</li>
+    <li><b>A change in dev.</b> Edit <code>APP_MESSAGE</code> in <code>gitops/apps/demo-app/overlays/dev/release.yaml</code>, open a PR,
+      merge after CI is green. Watch dev's Argo CD roll the pods and the page change.</li>
+    <li><b>Promotion.</b> Actions → <b>promote</b> → <code>dev-to-staging</code>. Show the bot's PR containing a single file, approve, merge.
+      Repeat with <code>staging-to-prod</code>.</li>
+    <li><b>Guard rails.</b> Open a PR that edits both the dev and prod overlays: the <b>validate</b> check fails. On prod, try
+      <code>kubectl -n demo create configmap unlabelled --from-literal=x=1</code>: the cluster denies it.</li>
+    <li><b>Self-healing.</b> <code>kubectl -n demo scale deployment demo-app --replicas=1</code> on prod: Argo CD puts it back to three.</li>
+    <li><b>High availability.</b> Power off <code>prod-cp1</code>: <code>kubectl get nodes</code> still answers through <code>172.20.0.100</code>.
+      Power off a worker: its pod is rescheduled and the page keeps answering.</li>
+  </ol>
+</section>
+
+<section id="troubleshooting">
+  <h2>Troubleshooting</h2>
+  <h3>Argo CD cannot fetch the repository or a chart</h3>
+  <p>Check the proxy settings in <code>gitops/platform/argocd/overlays/&lt;env&gt;/proxy-env-*.yaml</code>; they must match the inventory
+    (CI checks this). Internal names such as <code>.svc</code> and the cluster ranges must stay in <code>NO_PROXY</code>.</p>
+  <h3>"IP … is already in use" on the first build</h3>
+  <p>Something on the network answers on the API VIP or a MetalLB address. Free it, or change the addresses in the inventory and the
+    matching overlays (<code>ip-pool.yaml</code>, <code>values-&lt;env&gt;.yaml</code>) in one PR.</p>
+  <h3>The drift run fails</h3>
+  <p>Someone changed a node by hand. The run's diff names the host and file. Re-run <b>ansible</b> <code>site</code> to restore it, or
+    commit the change if it should stay.</p>
+  <h3>The ansible run waits forever</h3>
+  <p>The runner ops1 is offline (Settings → Actions → Runners) or the prod run is waiting for approval (the run page shows a review button).</p>
+  <h3>A sync is denied by Kyverno</h3>
+  <p>The resource's <code>k8sdemo.vn/env</code> label does not match the cluster. Check that the Application points at the right overlay.</p>
+</section>
+
+<footer>
+  Source: <a href="https://github.com/haison8x/k8s-demo">github.com/haison8x/k8s-demo</a> ·
+  Scripts: <code>scripts/github-setup.sh</code>, <code>scripts/get-kubeconfig.sh</code>, <code>scripts/install-tools.sh</code>,
+  <code>scripts/validate.sh</code> · Runner setup: <code>ansible/ops.yml</code>
+</footer>
+</main>
+
+<script>
+  // Copy buttons for code blocks.
+  document.querySelectorAll("pre").forEach(function (pre) {
+    var button = document.createElement("button");
+    button.className = "copy";
+    button.type = "button";
+    button.textContent = "Copy";
+    button.addEventListener("click", function () {
+      var text = pre.querySelector("code").innerText;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(text).then(function () {
+          button.textContent = "Copied";
+          setTimeout(function () { button.textContent = "Copy"; }, 1500);
+        });
+      }
+    });
+    pre.appendChild(button);
+  });
+</script>
+</body>
+</html>
