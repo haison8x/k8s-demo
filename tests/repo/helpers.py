@@ -2,6 +2,7 @@
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -22,3 +23,33 @@ def inventory(env_name):
         check=True, capture_output=True, text=True, env=ansible_env(),
     ).stdout
     return json.loads(out)
+
+
+OUT = ROOT / "tests" / "out"
+_rendered = set()
+
+
+def rendered(env_name, name, **extra_vars):
+    """Render all role templates for one environment (once per process) and
+    return the text of the rendered file `name`."""
+    if env_name not in _rendered:
+        cmd = ["ansible-playbook", "-i", str(ANSIBLE / "inventories" / env_name / "hosts.yml"),
+               str(ROOT / "tests" / "ansible" / "render.yml"),
+               "-e", "ansible_connection=local", "-e", "ansible_become=false",
+               "-e", "ansible_python_interpreter=" + sys.executable,
+               "-e", "kube_vip_interface=eth0",
+               "-e", "kube_vip_kubeconfig=/etc/kubernetes/admin.conf"]
+        res = subprocess.run(cmd, capture_output=True, text=True, env=ansible_env())
+        if res.returncode != 0:
+            raise AssertionError("render.yml failed:\n" + res.stdout[-3000:] + res.stderr[-2000:])
+        _rendered.add(env_name)
+    return (OUT / env_name / name).read_text()
+
+
+def playbook_listing(flag, playbook="site.yml", env_name="prod"):
+    """Return `ansible-playbook --list-tasks/--list-tags` output."""
+    return subprocess.run(
+        ["ansible-playbook", "-i", str(ANSIBLE / "inventories" / env_name / "hosts.yml"),
+         str(ANSIBLE / playbook), flag],
+        check=True, capture_output=True, text=True, env=ansible_env(),
+    ).stdout

@@ -11,3 +11,12 @@ env_marker_path: /etc/k8s-demo/env
 
 # Where scripts/get-kubeconfig.sh stores per-environment kubeconfig files.
 local_kubeconfig_dir: ~/.kube
+
+# Proxy environment for every task that reaches the Internet (apt, get_url, kubectl apply -f https://...).
+proxy_env:
+  http_proxy: "{{ proxy_http }}"
+  https_proxy: "{{ proxy_https }}"
+  no_proxy: "{{ proxy_no_proxy }}"
+  HTTP_PROXY: "{{ proxy_http }}"
+  HTTPS_PROXY: "{{ proxy_https }}"
+  NO_PROXY: "{{ proxy_no_proxy }}"

@@ -1,0 +1,6 @@
+# Managed by Ansible (k8s-demo): image pulls go through the company proxy,
+# cluster-internal ranges do not.
+[Service]
+Environment="HTTP_PROXY={{ proxy_http }}"
+Environment="HTTPS_PROXY={{ proxy_https }}"
+Environment="NO_PROXY={{ proxy_no_proxy }}"

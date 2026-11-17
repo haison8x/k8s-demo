@@ -5,3 +5,9 @@
   gather_facts: false
   roles:
     - preflight
+
+- name: Prepare every node
+  hosts: k8s_cluster
+  environment: "{{ proxy_env }}"
+  roles:
+    - common

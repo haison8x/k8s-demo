@@ -1,0 +1,3 @@
+// Managed by Ansible (k8s-demo): outbound HTTP(S) for apt goes through the company proxy.
+Acquire::http::Proxy "{{ proxy_http }}";
+Acquire::https::Proxy "{{ proxy_https }}";

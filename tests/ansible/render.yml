@@ -1,0 +1,30 @@
+# Test harness: render role templates with one environment's variables into
+# tests/out/<env>/ so tests can assert on the generated files.
+# Run with: -i ansible/inventories/<env>/hosts.yml -e ansible_connection=local -e ansible_become=false
+- name: Render role templates
+  hosts: control_plane[0]
+  gather_facts: false
+  vars_files:
+    - ../../ansible/group_vars/all/common.yml
+    - ../../ansible/group_vars/all/versions.yml
+  vars:
+    render_out: "{{ playbook_dir }}/../out/{{ env }}"
+    render_templates:
+      - {role: common, src: apt-proxy.conf.j2}
+      - {role: common, src: environment.j2}
+      - {role: common, src: containerd-proxy.conf.j2}
+  tasks:
+    - name: Create the output directory
+      ansible.builtin.file:
+        path: "{{ render_out }}"
+        state: directory
+        mode: "0755"
+
+    - name: Render each template
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../../ansible/roles/{{ item.role }}/templates/{{ item.src }}"
+        dest: "{{ render_out }}/{{ item.src | splitext | first }}"
+        mode: "0644"
+      loop: "{{ render_templates }}"
+      loop_control:
+        label: "{{ item.role }}/{{ item.src }}"
