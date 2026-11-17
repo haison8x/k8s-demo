@@ -35,7 +35,7 @@ concurrency:
 jobs:
   run:
     name: ${{ inputs.playbook }} ${{ inputs.env }}
-    if: github.ref == 'refs/heads/main'
+    if: vars.AUTOMATION_ENABLED == 'true' && github.ref == 'refs/heads/main'
     runs-on: [self-hosted, k8s-demo-ops]
     environment: ${{ inputs.env }}
     timeout-minutes: 120

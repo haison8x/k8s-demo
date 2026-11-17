@@ -64,6 +64,17 @@ tests/                                  repository, Ansible, policy and smoke te
 .github/workflows/                      validate, ansible, drift, promote
 ```
 
+## Automation switch
+
+Every workflow (validate, ansible, drift, promote) is **off** until the repository variable `AUTOMATION_ENABLED` is `true`. Pushing the repository runs nothing; skipped jobs count as passed checks.
+
+```bash
+gh variable set AUTOMATION_ENABLED --body true --repo haison8x/k8s-demo   # on
+gh variable delete AUTOMATION_ENABLED --repo haison8x/k8s-demo           # off
+```
+
+(Or Settings → Secrets and variables → Actions → Variables.)
+
 ## One-time setup
 
 Work from WSL or Linux, in a clone **inside your Linux home directory** (Ansible ignores `ansible.cfg` in world-writable folders such as `/mnt/c`, and SSH rejects keys with open permissions).
@@ -79,14 +90,15 @@ Work from WSL or Linux, in a clone **inside your Linux home directory** (Ansible
    ansible-playbook -i ansible/inventories/ops/hosts.yml ansible/ops.yml --private-key ~/.ssh/k8s-demo/ops \
      -e runner_registration_token=$(gh api -X POST repos/haison8x/k8s-demo/actions/runners/registration-token --jq .token)
    ```
-5. **Build the clusters:** Actions → **ansible** → env `dev`, playbook `site`. Then `staging`, then `prod` (approve the run).
-6. **Name resolution** on the presenter laptop (`C:\Windows\System32\drivers\etc\hosts`) or LAN DNS:
+5. **Turn automation on:** `gh variable set AUTOMATION_ENABLED --body true --repo haison8x/k8s-demo`.
+6. **Build the clusters:** Actions → **ansible** → env `dev`, playbook `site`. Then `staging`, then `prod` (approve the run).
+7. **Name resolution** on the presenter laptop (`C:\Windows\System32\drivers\etc\hosts`) or LAN DNS:
    ```
    172.20.2.200 dev.k8sdemo.vn argocd.dev.k8sdemo.vn
    172.20.1.200 staging.k8sdemo.vn argocd.staging.k8sdemo.vn
    172.20.0.200 k8sdemo.vn argocd.k8sdemo.vn
    ```
-7. **kubectl (optional):** `scripts/get-kubeconfig.sh prod` then `export KUBECONFIG=~/.kube/k8s-demo-prod.kubeconfig`.
+8. **kubectl (optional):** `scripts/get-kubeconfig.sh prod` then `export KUBECONFIG=~/.kube/k8s-demo-prod.kubeconfig`.
 
 ## Everyday operations
 

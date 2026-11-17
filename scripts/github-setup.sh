@@ -160,4 +160,5 @@ else
   api POST "repos/$REPO/pages" '{"source":{"branch":"main","path":"/"}}'
 fi
 
-echo "Done."
+echo "Done. Workflows stay off until you run:"
+echo "   gh variable set AUTOMATION_ENABLED --body true --repo $REPO"

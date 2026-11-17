@@ -1,4 +1,5 @@
 # Runs on GitHub-hosted runners only: no access to the LAN, safe for pull requests from forks.
+# Every workflow stays off until the repository variable AUTOMATION_ENABLED is 'true'.
 name: validate
 
 on:
@@ -16,6 +17,7 @@ concurrency:
 jobs:
   validate:
     name: validate
+    if: vars.AUTOMATION_ENABLED == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:

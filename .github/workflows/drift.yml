@@ -18,7 +18,7 @@ concurrency:
 jobs:
   drift:
     name: drift ${{ matrix.env }}
-    if: github.ref == 'refs/heads/main'
+    if: vars.AUTOMATION_ENABLED == 'true' && github.ref == 'refs/heads/main'
     runs-on: [self-hosted, k8s-demo-ops]
     environment: ${{ matrix.env }}-drift
     timeout-minutes: 60

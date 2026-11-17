@@ -44,6 +44,16 @@ class WorkflowSafetyTest(unittest.TestCase):
                     self.assertIn("refs/heads/main", job.get("if", ""), f"{name}:{job_name}")
                     self.assertIn("environment", job, f"{name}:{job_name}")
 
+    def test_every_job_is_off_until_automation_is_enabled(self):
+        """Nothing runs after a push until the AUTOMATION_ENABLED repository variable is 'true'."""
+        for name, wf in all_workflows().items():
+            for job_name, job in wf["jobs"].items():
+                self.assertIn("vars.AUTOMATION_ENABLED == 'true'", job.get("if", ""), f"{name}:{job_name}")
+
+    def test_the_automation_switch_is_documented(self):
+        for doc in ("README.md", "index.html"):
+            self.assertIn("AUTOMATION_ENABLED", (ROOT / doc).read_text(encoding="utf-8"), doc)
+
     def test_every_action_is_pinned_to_a_commit(self):
         for name, wf in all_workflows().items():
             for job in wf["jobs"].values():

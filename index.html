@@ -189,6 +189,10 @@
   <h2>One-time setup</h2>
   <div class="note">Work from WSL or Linux, in a clone inside your Linux home directory. Ansible ignores <code>ansible.cfg</code> in
     world-writable folders such as <code>/mnt/c</code>, and SSH refuses keys with open permissions.</div>
+  <div class="note"><b>Automation switch.</b> Every workflow (validate, ansible, drift, promote) is off until the repository variable
+    <code>AUTOMATION_ENABLED</code> is <code>true</code>: pushing the repository runs nothing, and skipped jobs count as passed checks.
+    Turn it on with <code>gh variable set AUTOMATION_ENABLED --body true --repo haison8x/k8s-demo</code>
+    (or Settings → Secrets and variables → Actions → Variables), and off again with <code>gh variable delete AUTOMATION_ENABLED --repo haison8x/k8s-demo</code>.</div>
   <ol class="steps">
     <li><b>Servers and network.</b> Ubuntu 24.04 everywhere, addresses as in the table, user <code>haison</code> with passwordless sudo.
       Add <code>~/.ssh/k8s-demo/&lt;env&gt;.pub</code> to <code>~haison/.ssh/authorized_keys</code> on that environment's servers
@@ -206,6 +210,7 @@ bash scripts/github-setup.sh --promoter-client-id &lt;CLIENT_ID&gt; --promoter-k
 export PATH="$HOME/.venvs/k8s-demo/bin:$HOME/.local/bin:$PATH"
 ansible-playbook -i ansible/inventories/ops/hosts.yml ansible/ops.yml --private-key ~/.ssh/k8s-demo/ops \
   -e runner_registration_token=$(gh api -X POST repos/haison8x/k8s-demo/actions/runners/registration-token --jq .token)</code></pre></li>
+    <li><b>Turn automation on</b> once the steps above are done: <code>gh variable set AUTOMATION_ENABLED --body true --repo haison8x/k8s-demo</code>.</li>
     <li><b>Build the clusters.</b> Actions → <b>ansible</b> → Run workflow: env <code>dev</code>, playbook <code>site</code>.
       Then <code>staging</code>, then <code>prod</code>; the prod run waits for an approval. The first run checks that the VIP and the
       MetalLB pool are unused before <code>kubeadm init</code>.</li>
