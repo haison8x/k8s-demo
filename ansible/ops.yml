@@ -1,0 +1,9 @@
+# One-time setup of the ops VM as the GitHub Actions self-hosted runner. Run from WSL:
+#   ansible-playbook -i ansible/inventories/ops/hosts.yml ansible/ops.yml \
+#     --private-key ~/.ssh/k8s-demo/ops \
+#     -e runner_registration_token=$(gh api -X POST repos/haison8x/k8s-demo/actions/runners/registration-token --jq .token)
+- name: Install the GitHub Actions runner
+  hosts: ops
+  environment: "{{ proxy_env }}"
+  roles:
+    - ops_runner

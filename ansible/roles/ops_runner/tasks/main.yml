@@ -1,0 +1,127 @@
+# GitHub Actions self-hosted runner for the "ansible" and "drift" workflows.
+- name: Configure the proxy
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: proxy.yml
+
+- name: Install runner prerequisites
+  ansible.builtin.apt:
+    name: [curl, git, tar, xz-utils, openssh-client, ca-certificates, jq]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Create the runner user
+  ansible.builtin.user:
+    name: runner
+    shell: /bin/bash
+    create_home: true
+
+- name: Create the runner directory
+  ansible.builtin.file:
+    path: /home/runner/actions-runner
+    state: directory
+    owner: runner
+    group: runner
+    mode: "0755"
+
+- name: Download and unpack the runner
+  ansible.builtin.unarchive:
+    src: "https://github.com/actions/runner/releases/download/v{{ ops_runner_version }}/actions-runner-linux-x64-{{ ops_runner_version }}.tar.gz"
+    dest: /home/runner/actions-runner
+    remote_src: true
+    owner: runner
+    group: runner
+    creates: /home/runner/actions-runner/config.sh
+
+- name: Install the runner's system dependencies
+  ansible.builtin.command: /home/runner/actions-runner/bin/installdependencies.sh
+  args:
+    creates: /home/runner/actions-runner/.dependencies-installed
+  notify: Mark runner dependencies installed
+
+- name: Flush handlers
+  ansible.builtin.meta: flush_handlers
+
+- name: Check whether the runner is registered
+  ansible.builtin.stat:
+    path: /home/runner/actions-runner/.runner
+  register: ops_runner_registered
+
+- name: Require a registration token for a new runner
+  ansible.builtin.fail:
+    msg: A new runner needs a registration token; see the command at the top of ansible/ops.yml.
+  when:
+    - not ops_runner_registered.stat.exists
+    - (runner_registration_token | default('')) | length == 0
+
+- name: Register the runner with GitHub
+  ansible.builtin.command:
+    argv:
+      - ./config.sh
+      - --unattended
+      - --replace
+      - --url
+      - "{{ ops_runner_repo_url }}"
+      - --token
+      - "{{ runner_registration_token }}"
+      - --name
+      - "{{ inventory_hostname }}"
+      - --labels
+      - "{{ ops_runner_labels }}"
+      - --work
+      - _work
+    chdir: /home/runner/actions-runner
+    creates: /home/runner/actions-runner/.runner
+  become: true
+  become_user: runner
+  environment: "{{ proxy_env }}"
+  no_log: true
+
+- name: Give the runner the proxy settings
+  ansible.builtin.template:
+    src: runner.env.j2
+    dest: /home/runner/actions-runner/.env
+    owner: runner
+    group: runner
+    mode: "0644"
+  notify: Restart the runner
+
+- name: Put the validation toolchain on the runner's PATH
+  ansible.builtin.copy:
+    content: "/home/runner/.venvs/k8s-demo/bin:/home/runner/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n"
+    dest: /home/runner/actions-runner/.path
+    owner: runner
+    group: runner
+    mode: "0644"
+  notify: Restart the runner
+
+- name: Copy the toolchain installer
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "/home/runner/k8s-demo-tools/{{ item.dest }}"
+    owner: runner
+    group: runner
+    mode: "0755"
+  loop:
+    - {src: "{{ playbook_dir }}/../scripts/install-tools.sh", dest: scripts/install-tools.sh}
+    - {src: "{{ playbook_dir }}/requirements.yml", dest: ansible/requirements.yml}
+
+- name: Install Ansible, kubectl and the other tools for the runner
+  ansible.builtin.command: bash /home/runner/k8s-demo-tools/scripts/install-tools.sh
+  become: true
+  become_user: runner
+  environment: "{{ proxy_env }}"
+  changed_when: false
+
+- name: Install the runner service
+  ansible.builtin.command: ./svc.sh install runner
+  args:
+    chdir: /home/runner/actions-runner
+    creates: /home/runner/actions-runner/.service
+
+- name: Start the runner service
+  ansible.builtin.command: ./svc.sh start
+  args:
+    chdir: /home/runner/actions-runner
+  changed_when: false

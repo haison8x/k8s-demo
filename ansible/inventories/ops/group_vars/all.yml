@@ -1,0 +1,8 @@
+# The ops VM: GitHub Actions self-hosted runner that reaches every environment subnet.
+proxy_http: http://proxy.mycompany.com:3128
+proxy_https: http://proxy.mycompany.com:3128
+proxy_no_proxy: localhost,127.0.0.1,172.20.0.0/16,.k8sdemo.vn
+
+ops_runner_version: 2.338.2
+ops_runner_labels: k8s-demo-ops
+ops_runner_repo_url: https://github.com/haison8x/k8s-demo

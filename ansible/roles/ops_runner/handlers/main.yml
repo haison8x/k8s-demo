@@ -1,0 +1,13 @@
+- name: Mark runner dependencies installed
+  ansible.builtin.file:
+    path: /home/runner/actions-runner/.dependencies-installed
+    state: touch
+    owner: runner
+    group: runner
+    mode: "0644"
+
+- name: Restart the runner
+  ansible.builtin.shell: ./svc.sh stop && ./svc.sh start
+  args:
+    chdir: /home/runner/actions-runner
+  changed_when: true
