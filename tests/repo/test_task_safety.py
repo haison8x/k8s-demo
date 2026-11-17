@@ -54,7 +54,7 @@ class TaskSafetyTest(unittest.TestCase):
                         or "control_plane_join_command" in cmd):
                 found.append(task.get("name"))
                 self.assertTrue(creates_of(task), f"{f.name}: '{task.get('name')}' has no creates:")
-        self.assertGreaterEqual(len(found), 2, f"expected kubeadm init/join tasks, found {found}")
+        self.assertGreaterEqual(len(found), 3, f"expected kubeadm init/join tasks, found {found}")
 
     def test_tasks_touching_secrets_do_not_log(self):
         for f, task in all_tasks():

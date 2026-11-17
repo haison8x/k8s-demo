@@ -37,6 +37,7 @@
   when:
     - inventory_hostname != groups['control_plane'][0]
     - not control_plane_admin_conf.stat.exists
+    - not ansible_check_mode
 
 - name: Run kube-vip on the other control planes after join
   ansible.builtin.include_role:

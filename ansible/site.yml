@@ -17,3 +17,9 @@
   environment: "{{ proxy_env }}"
   roles:
     - control_plane
+
+- name: Join the workers
+  hosts: workers
+  environment: "{{ proxy_env }}"
+  roles:
+    - worker

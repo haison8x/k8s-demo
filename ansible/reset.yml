@@ -1,0 +1,53 @@
+# Wipe one environment so it can be rebuilt from scratch. Destructive.
+#   ansible-playbook -i ansible/inventories/<env>/hosts.yml ansible/reset.yml -e confirm_reset=<env>
+# Never run automatically: only from the "ansible" workflow with playbook=reset.
+- name: Confirm the environment to wipe
+  hosts: k8s_cluster
+  gather_facts: false
+  any_errors_fatal: true
+  roles:
+    - preflight
+  tasks:
+    - name: Require confirm_reset to name the environment
+      ansible.builtin.assert:
+        that: (confirm_reset | default('')) == env
+        fail_msg: "confirm_reset must equal '{{ env }}' to wipe this environment"
+        quiet: true
+
+- name: Wipe every node
+  hosts: k8s_cluster
+  any_errors_fatal: true
+  tasks:
+    - name: Run kubeadm reset
+      ansible.builtin.command: kubeadm reset -f
+      register: reset_kubeadm
+      changed_when: true
+      failed_when: reset_kubeadm.rc != 0 and 'command not found' not in (reset_kubeadm.stderr | default(''))
+
+    - name: Remove Kubernetes and CNI state
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/cni/net.d
+        - /etc/kubernetes/manifests/kube-vip.yaml
+        - /etc/kubernetes/kubeadm-init.yaml
+        - /etc/kubernetes/calico-installation.yaml
+        - /root/.kube
+        - "/home/{{ ansible_user }}/.kube"
+        - "{{ env_marker_path }}"
+
+    - name: Flush iptables rules left by kube-proxy and Calico
+      ansible.builtin.shell: |
+        set -e
+        for table in filter nat mangle raw; do iptables -t "$table" -F; iptables -t "$table" -X; done
+      args:
+        executable: /bin/bash
+      changed_when: true
+
+    - name: Delete Calico network interfaces
+      ansible.builtin.command: "ip link delete {{ item }}"
+      loop: [vxlan.calico, tunl0]
+      register: reset_links
+      changed_when: reset_links.rc == 0
+      failed_when: false

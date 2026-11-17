@@ -1,0 +1,6 @@
+- name: Join this node as a worker
+  ansible.builtin.command: "{{ hostvars[groups['control_plane'][0]].control_plane_join_command }}"
+  args:
+    creates: /etc/kubernetes/kubelet.conf
+  when: not ansible_check_mode
+  no_log: true

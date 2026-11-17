@@ -15,7 +15,7 @@ yamllint -s .
 
 step "ansible syntax-check"
 for env in "${ENVS[@]}"; do
-  for pb in ansible/site.yml; do
+  for pb in ansible/site.yml ansible/reset.yml; do
     ansible-playbook -i "ansible/inventories/$env/hosts.yml" --syntax-check "$pb" >/dev/null
   done
 done
@@ -26,6 +26,9 @@ ansible-lint -q ansible/
 
 step "pre-flight guard"
 bash tests/ansible/preflight.sh
+
+step "reset guard"
+bash tests/ansible/reset.sh
 
 step "repository tests"
 python -m unittest discover -s tests/repo -t . 2>&1 | tail -n 40
