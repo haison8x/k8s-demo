@@ -1,0 +1,13 @@
+# Settings shared by every environment.
+ansible_user: haison
+ansible_become: true
+
+kube_apiserver_port: 6443
+pod_cidr: 10.244.0.0/16
+service_cidr: 10.96.0.0/12
+
+# Written on first run; later runs refuse to touch a host whose marker names another environment.
+env_marker_path: /etc/k8s-demo/env
+
+# Where scripts/get-kubeconfig.sh stores per-environment kubeconfig files.
+local_kubeconfig_dir: ~/.kube

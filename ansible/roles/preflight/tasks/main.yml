@@ -1,0 +1,48 @@
+# Guard against running against the wrong environment. Tagged `always` so it
+# also runs for tag-filtered runs such as the nightly drift check.
+- name: Check that env matches the inventory directory
+  ansible.builtin.assert:
+    that: env == (inventory_dir | basename)
+    fail_msg: "env '{{ env }}' does not match inventory directory '{{ inventory_dir | basename }}'"
+    quiet: true
+  tags: [preflight, always]
+
+- name: Check that the host address is inside the environment subnet
+  ansible.builtin.assert:
+    that: (ansible_host | ansible.utils.ipaddr(env_subnet)) is truthy
+    fail_msg: "{{ inventory_hostname }} ({{ ansible_host }}) is outside {{ env_subnet }}"
+    quiet: true
+  tags: [preflight, always]
+
+- name: Read the environment marker
+  ansible.builtin.slurp:
+    src: "{{ env_marker_path }}"
+  register: preflight_marker
+  failed_when: false
+  tags: [preflight, always]
+
+- name: Check that the environment marker matches
+  ansible.builtin.assert:
+    that: (preflight_marker.content | b64decode | trim) == env
+    fail_msg: >-
+      environment marker {{ env_marker_path }} on {{ inventory_hostname }} says
+      '{{ preflight_marker.content | b64decode | trim }}' but this run targets '{{ env }}'
+    quiet: true
+  when: preflight_marker.content is defined
+  tags: [preflight, always]
+
+- name: Write the environment marker
+  when: preflight_marker.content is not defined
+  tags: [preflight, always]
+  block:
+    - name: Create the marker directory
+      ansible.builtin.file:
+        path: "{{ env_marker_path | dirname }}"
+        state: directory
+        mode: "0755"
+
+    - name: Record the environment on the host
+      ansible.builtin.copy:
+        content: "{{ env }}\n"
+        dest: "{{ env_marker_path }}"
+        mode: "0644"

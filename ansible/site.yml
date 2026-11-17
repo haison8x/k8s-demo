@@ -1,0 +1,7 @@
+# Build or converge one environment:
+#   ansible-playbook -i ansible/inventories/<env>/hosts.yml ansible/site.yml
+- name: Pre-flight environment guard
+  hosts: k8s_cluster
+  gather_facts: false
+  roles:
+    - preflight

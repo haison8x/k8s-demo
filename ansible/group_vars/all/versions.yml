@@ -1,0 +1,5 @@
+# Pinned versions installed by Ansible. See docs/VERSIONS.md for the full list.
+kube_minor: "1.37"
+kube_vip_version: v1.3.1
+calico_version: v3.33.1
+argocd_version: v3.6.1

@@ -1,0 +1,6 @@
+# Test harness: runs only the pre-flight guard against a fixture inventory.
+- name: Pre-flight guard under test
+  hosts: all
+  gather_facts: false
+  roles:
+    - preflight

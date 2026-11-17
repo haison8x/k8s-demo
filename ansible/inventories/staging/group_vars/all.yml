@@ -1,0 +1,15 @@
+# Environment: staging. Literal values only (no Jinja): scripts/env-guard.py reads this file.
+env: staging
+env_subnet: 172.20.1.0/24
+kube_vip_address: 172.20.1.100
+metallb_range_start: 172.20.1.200
+metallb_range_end: 172.20.1.229
+ingress_ip: 172.20.1.200
+
+proxy_http: http://proxy.mycompany.com:3128
+proxy_https: http://proxy.mycompany.com:3128
+proxy_no_proxy: localhost,127.0.0.1,172.20.1.0/24,172.20.1.100,10.244.0.0/16,10.96.0.0/12,.svc,.cluster.local,.k8sdemo.vn
+
+argocd_root_path: gitops/clusters/staging
+app_host: staging.k8sdemo.vn
+argocd_host: argocd.staging.k8sdemo.vn
