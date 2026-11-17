@@ -1,0 +1,13 @@
+# Ansible
+*.retry
+
+# Test output
+tests/out/
+__pycache__/
+*.pyc
+.venv/
+
+# Credentials must never be committed
+*.pem
+id_*
+*.kubeconfig
