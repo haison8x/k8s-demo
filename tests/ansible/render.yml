@@ -17,6 +17,7 @@
       - ansible/roles/control_plane/templates/kubeadm-init.yaml.j2
       - ansible/roles/control_plane/templates/calico-installation.yaml.j2
       - tests/ansible/templates/reserved-ips.j2
+      - ansible/roles/argocd_bootstrap/templates/root-app.yaml.j2
   tasks:
     - name: Create the output directory
       ansible.builtin.file:

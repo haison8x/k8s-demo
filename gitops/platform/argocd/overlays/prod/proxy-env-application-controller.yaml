@@ -1,0 +1,17 @@
+# Must match ansible/inventories/prod/group_vars/all.yml.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: argocd-application-controller
+spec:
+  template:
+    spec:
+      containers:
+        - name: argocd-application-controller
+          env:
+            - name: HTTP_PROXY
+              value: http://proxy.mycompany.com:3128
+            - name: HTTPS_PROXY
+              value: http://proxy.mycompany.com:3128
+            - name: NO_PROXY
+              value: localhost,127.0.0.1,172.20.0.0/24,172.20.0.100,10.244.0.0/16,10.96.0.0/12,.svc,.cluster.local,.k8sdemo.vn,argocd-repo-server,argocd-redis,argocd-dex-server,argocd-server,argocd-applicationset-controller

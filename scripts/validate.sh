@@ -30,6 +30,9 @@ bash tests/ansible/preflight.sh
 step "reset guard"
 bash tests/ansible/reset.sh
 
+step "environment guard"
+python scripts/env-guard.py check-tree
+
 step "repository tests"
 python -m unittest discover -s tests/repo -t . 2>&1 | tail -n 40
 

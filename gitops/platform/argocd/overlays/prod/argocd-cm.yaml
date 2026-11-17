@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cm
+data:
+  url: http://argocd.k8sdemo.vn
+  ui.bannercontent: PRODUCTION
+  ui.bannerpermanent: "true"
+  ui.bannerposition: top

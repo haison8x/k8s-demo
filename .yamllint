@@ -6,6 +6,9 @@ ignore: |
 rules:
   line-length:
     max: 160
+    # NO_PROXY lists are single values and cannot be wrapped.
+    ignore: |
+      gitops/platform/argocd/overlays/*/proxy-env-*.yaml
   document-start: disable
   truthy:
     allowed-values: ['true', 'false', 'yes', 'no']

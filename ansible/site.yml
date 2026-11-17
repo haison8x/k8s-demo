@@ -23,3 +23,9 @@
   environment: "{{ proxy_env }}"
   roles:
     - worker
+
+- name: Hand the cluster over to Argo CD
+  hosts: control_plane[0]
+  environment: "{{ proxy_env }}"
+  roles:
+    - argocd_bootstrap

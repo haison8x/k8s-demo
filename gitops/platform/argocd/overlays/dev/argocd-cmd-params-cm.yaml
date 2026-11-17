@@ -1,0 +1,7 @@
+# TLS is not used in this demo; the UI is served over HTTP behind the ingress.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-cmd-params-cm
+data:
+  server.insecure: "true"

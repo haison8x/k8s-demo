@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: argocd
+resources:
+  - ../../base
+  - ingress.yaml
+patches:
+  - path: argocd-cm.yaml
+  - path: argocd-cmd-params-cm.yaml
+  - path: proxy-env-repo-server.yaml
+  - path: proxy-env-application-controller.yaml

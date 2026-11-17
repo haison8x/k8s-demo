@@ -1,0 +1,7 @@
+# Upstream Argo CD, pinned. After bootstrap, each cluster's Argo CD manages itself from its overlay.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: argocd
+resources:
+  - namespace.yaml
+  - https://raw.githubusercontent.com/argoproj/argo-cd/v3.6.1/manifests/install.yaml

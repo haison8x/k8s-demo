@@ -30,3 +30,7 @@ reserved_ips: >-
   {%- set _ = ips.append(metallb_range_start | ansible.utils.ipmath(i)) -%}
   {%- endfor -%}
   {{ ips }}
+
+# The Git repository every cluster's Argo CD follows.
+gitops_repo_url: https://github.com/haison8x/k8s-demo.git
+gitops_revision: main
