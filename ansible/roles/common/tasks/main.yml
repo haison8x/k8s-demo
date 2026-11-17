@@ -50,7 +50,7 @@
 
 - name: Install containerd and helper packages
   ansible.builtin.apt:
-    name: [containerd, apt-transport-https, ca-certificates, curl, gpg, arping]
+    name: [containerd, apt-transport-https, ca-certificates, curl, gpg, iputils-arping]
     state: present
     update_cache: true
     cache_valid_time: 3600

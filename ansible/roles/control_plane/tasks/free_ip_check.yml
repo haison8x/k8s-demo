@@ -1,0 +1,16 @@
+# Runs only before the very first `kubeadm init`: nothing may answer ARP on
+# the API VIP or on any MetalLB address, or the cluster would fight another device.
+- name: Probe the reserved addresses with ARP
+  ansible.builtin.command: "arping -c 2 -w 3 -I {{ kube_vip_interface | default(ansible_default_ipv4.interface) }} {{ item }}"
+  loop: "{{ reserved_ips }}"
+  register: control_plane_arping
+  changed_when: false
+  failed_when: false
+
+- name: Stop if a reserved address is already in use
+  ansible.builtin.fail:
+    msg: "IP {{ item.item }} is already in use on the network; free it or change the plan in ansible/inventories/{{ env }}"
+  loop: "{{ control_plane_arping.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.rc == 0

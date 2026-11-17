@@ -10,9 +10,13 @@
   vars:
     render_out: "{{ playbook_dir }}/../out/{{ env }}"
     render_templates:
-      - {role: common, src: apt-proxy.conf.j2}
-      - {role: common, src: environment.j2}
-      - {role: common, src: containerd-proxy.conf.j2}
+      - ansible/roles/common/templates/apt-proxy.conf.j2
+      - ansible/roles/common/templates/environment.j2
+      - ansible/roles/common/templates/containerd-proxy.conf.j2
+      - ansible/roles/kube_vip/templates/kube-vip.yaml.j2
+      - ansible/roles/control_plane/templates/kubeadm-init.yaml.j2
+      - ansible/roles/control_plane/templates/calico-installation.yaml.j2
+      - tests/ansible/templates/reserved-ips.j2
   tasks:
     - name: Create the output directory
       ansible.builtin.file:
@@ -22,9 +26,9 @@
 
     - name: Render each template
       ansible.builtin.template:
-        src: "{{ playbook_dir }}/../../ansible/roles/{{ item.role }}/templates/{{ item.src }}"
-        dest: "{{ render_out }}/{{ item.src | splitext | first }}"
+        src: "{{ playbook_dir }}/../../{{ item }}"
+        dest: "{{ render_out }}/{{ item | basename | splitext | first }}"
         mode: "0644"
       loop: "{{ render_templates }}"
       loop_control:
-        label: "{{ item.role }}/{{ item.src }}"
+        label: "{{ item | basename }}"

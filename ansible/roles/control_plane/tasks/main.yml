@@ -1,0 +1,55 @@
+# First control plane: free-IP check, kube-vip, kubeadm init, Calico.
+# Other control planes: kubeadm join, then kube-vip.
+- name: Check whether this node already runs a control plane
+  ansible.builtin.stat:
+    path: /etc/kubernetes/admin.conf
+  register: control_plane_admin_conf
+  tags: [drift]
+
+- name: Check that the VIP and MetalLB addresses are free
+  ansible.builtin.include_tasks: free_ip_check.yml
+  when:
+    - inventory_hostname == groups['control_plane'][0]
+    - not control_plane_admin_conf.stat.exists
+
+- name: Run kube-vip on the first control plane before init
+  ansible.builtin.include_role:
+    name: kube_vip
+    apply:
+      tags: [drift]
+  when: inventory_hostname == groups['control_plane'][0]
+  tags: [drift]
+
+- name: Initialise the cluster
+  ansible.builtin.include_tasks: init.yml
+  when:
+    - inventory_hostname == groups['control_plane'][0]
+    - not control_plane_admin_conf.stat.exists
+
+- name: Create join credentials
+  ansible.builtin.include_tasks: join_credentials.yml
+  when:
+    - inventory_hostname == groups['control_plane'][0]
+    - not ansible_check_mode
+
+- name: Join the other control planes
+  ansible.builtin.include_tasks: join.yml
+  when:
+    - inventory_hostname != groups['control_plane'][0]
+    - not control_plane_admin_conf.stat.exists
+
+- name: Run kube-vip on the other control planes after join
+  ansible.builtin.include_role:
+    name: kube_vip
+    apply:
+      tags: [drift]
+  when: inventory_hostname != groups['control_plane'][0]
+  tags: [drift]
+
+- name: Install the admin kubeconfig
+  ansible.builtin.include_tasks:
+    file: kubeconfig.yml
+    apply:
+      tags: [drift]
+  when: inventory_hostname == groups['control_plane'][0]
+  tags: [drift]

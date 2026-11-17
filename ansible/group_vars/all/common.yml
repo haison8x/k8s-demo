@@ -20,3 +20,13 @@ proxy_env:
   HTTP_PROXY: "{{ proxy_http }}"
   HTTPS_PROXY: "{{ proxy_https }}"
   NO_PROXY: "{{ proxy_no_proxy }}"
+
+# Addresses that must be free before a new cluster is built: the API VIP and the whole MetalLB pool.
+reserved_ips: >-
+  {%- set first = metallb_range_start | ansible.utils.ipaddr('int') | int -%}
+  {%- set last = metallb_range_end | ansible.utils.ipaddr('int') | int -%}
+  {%- set ips = [kube_vip_address] -%}
+  {%- for i in range(0, last - first + 1) -%}
+  {%- set _ = ips.append(metallb_range_start | ansible.utils.ipmath(i)) -%}
+  {%- endfor -%}
+  {{ ips }}

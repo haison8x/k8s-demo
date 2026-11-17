@@ -1,0 +1,2 @@
+# Network interface that carries the API VIP.
+kube_vip_interface: "{{ ansible_default_ipv4.interface }}"

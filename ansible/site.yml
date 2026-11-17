@@ -11,3 +11,9 @@
   environment: "{{ proxy_env }}"
   roles:
     - common
+
+- name: Build the control plane
+  hosts: control_plane
+  environment: "{{ proxy_env }}"
+  roles:
+    - control_plane
