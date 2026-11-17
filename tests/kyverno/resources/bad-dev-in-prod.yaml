@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bad-dev-in-prod
+  namespace: demo
+  labels:
+    k8sdemo.vn/env: dev
+spec:
+  selector:
+    matchLabels:
+      app: bad-dev-in-prod
+  template:
+    metadata:
+      labels:
+        app: bad-dev-in-prod
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.31.8-alpine

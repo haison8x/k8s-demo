@@ -1,0 +1,14 @@
+# The prod cluster's identity, as written by Ansible at bootstrap.
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Context
+metadata:
+  name: context
+spec:
+  resources:
+    - apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: cluster-identity
+        namespace: kube-system
+      data:
+        env: prod

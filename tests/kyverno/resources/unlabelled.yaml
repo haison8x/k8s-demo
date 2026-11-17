@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unlabelled
+  namespace: demo
+spec:
+  selector:
+    matchLabels:
+      app: unlabelled
+  template:
+    metadata:
+      labels:
+        app: unlabelled
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.31.8-alpine

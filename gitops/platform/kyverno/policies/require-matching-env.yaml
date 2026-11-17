@@ -1,0 +1,36 @@
+# Rejects workload resources whose environment label does not match the
+# cluster they are applied to. The cluster's environment comes from the
+# kube-system/cluster-identity ConfigMap written by Ansible at bootstrap, so
+# Git and the inventory are two independent sources that must agree.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: require-matching-env
+  annotations:
+    policies.kyverno.io/title: Require matching environment
+    policies.kyverno.io/description: >-
+      Resources in managed namespaces must carry k8sdemo.vn/env equal to this cluster's environment.
+spec:
+  validationActions: [Deny]
+  failurePolicy: Fail
+  matchConstraints:
+    namespaceSelector:
+      matchLabels:
+        k8sdemo.vn/managed: "true"
+    resourceRules:
+      - apiGroups: ["", apps, networking.k8s.io]
+        apiVersions: ["*"]
+        operations: [CREATE, UPDATE]
+        resources: [deployments, statefulsets, daemonsets, services, ingresses, configmaps]
+  variables:
+    - name: clusterEnv
+      expression: resource.Get("v1", "configmaps", "kube-system", "cluster-identity").data.env
+    - name: resourceEnv
+      expression: >-
+        has(object.metadata.labels) && 'k8sdemo.vn/env' in object.metadata.labels
+        ? object.metadata.labels['k8sdemo.vn/env'] : ''
+  validations:
+    - expression: variables.resourceEnv == variables.clusterEnv
+      messageExpression: >-
+        'This cluster is ' + variables.clusterEnv +
+        ' but the resource is labelled k8sdemo.vn/env=' + variables.resourceEnv

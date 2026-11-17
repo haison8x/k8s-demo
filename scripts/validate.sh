@@ -30,6 +30,9 @@ bash tests/ansible/preflight.sh
 step "reset guard"
 bash tests/ansible/reset.sh
 
+step "kyverno policy tests"
+kyverno test tests/kyverno
+
 step "environment guard"
 python scripts/env-guard.py check-tree
 

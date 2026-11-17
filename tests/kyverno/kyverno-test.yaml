@@ -1,0 +1,29 @@
+# kyverno test tests/kyverno — the environment policy evaluated as if on the prod cluster.
+apiVersion: cli.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: require-matching-env
+policies:
+  - ../../gitops/platform/kyverno/policies/require-matching-env.yaml
+resources:
+  - resources/good-prod.yaml
+  - resources/bad-dev-in-prod.yaml
+  - resources/unlabelled.yaml
+context: context.yaml
+variables: values.yaml
+results:
+  - isValidatingPolicy: true
+    policy: require-matching-env
+    resources: [good-prod]
+    kind: Deployment
+    result: pass
+  - isValidatingPolicy: true
+    policy: require-matching-env
+    resources: [bad-dev-in-prod]
+    kind: Deployment
+    result: fail
+  - isValidatingPolicy: true
+    policy: require-matching-env
+    resources: [unlabelled]
+    kind: Deployment
+    result: fail
