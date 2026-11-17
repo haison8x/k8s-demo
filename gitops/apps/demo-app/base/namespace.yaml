@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo
+  labels:
+    # Opts the namespace into the require-matching-env Kyverno policy.
+    k8sdemo.vn/managed: "true"

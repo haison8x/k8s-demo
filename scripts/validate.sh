@@ -33,6 +33,9 @@ bash tests/ansible/reset.sh
 step "kyverno policy tests"
 kyverno test tests/kyverno
 
+step "demo page smoke test"
+bash scripts/smoke-demo-page.sh
+
 step "environment guard"
 python scripts/env-guard.py check-tree
 
