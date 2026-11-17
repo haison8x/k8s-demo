@@ -1,0 +1,63 @@
+# Defaults of the base-app chart. Each application overrides them with
+#   gitops/apps/<app>/values.yaml               settings shared by every environment
+#   gitops/apps/<app>/envs/<env>/env.yaml       environment settings (never promoted)
+#   gitops/apps/<app>/envs/<env>/release.yaml   the release (promoted unchanged)
+
+# Required: dev, staging or prod. Every resource gets the label k8sdemo.vn/env,
+# which the cluster's Kyverno policy compares with the cluster's own environment.
+environment: ""
+
+# Resource names default to the release name (helm.releaseName in the Argo CD Application).
+nameOverride: ""
+
+image:
+  repository: ""  # required
+  tag: ""         # required; set in release.yaml
+  pullPolicy: IfNotPresent
+
+# Ignored when autoscaling is enabled.
+replicaCount: 1
+
+containerName: app
+containerPort: 8080
+
+# Environment variables as NAME: value. Maps from several values files merge,
+# so env.yaml and release.yaml can each add their own variables.
+env: {}
+
+# Files as name: content, stored in a ConfigMap and mounted at filesMountPath.
+# Changing a file rolls the pods (checksum/files annotation).
+files: {}
+filesMountPath: /config
+
+service:
+  port: 80
+
+ingress:
+  enabled: false
+  className: nginx
+  host: ""
+  path: /
+
+# HTTP path for the readiness and liveness probes; empty disables both.
+probes:
+  path: ""
+
+resources: {}
+securityContext: {}
+
+# soft: prefer one pod per node; none: no anti-affinity.
+podAntiAffinity: soft
+
+podLabels: {}
+podAnnotations: {}
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 80
+
+podDisruptionBudget:
+  enabled: false
+  maxUnavailable: 1

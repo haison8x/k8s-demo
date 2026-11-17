@@ -14,11 +14,13 @@ Resolved on 2026-11-17.
 | F5 NGINX Ingress Controller Helm chart | 2.8.1 (app 5.7.1), repo `https://helm.nginx.com/stable` | `gitops/clusters/<env>/nginx-ingress.yaml` |
 | Kyverno Helm chart | 3.10.0 (app v1.20.0) | `gitops/clusters/<env>/kyverno.yaml` |
 | Kyverno CLI (tests) | v1.20.0 | `scripts/install-tools.sh` |
-| nginx image (demo app) | 1.31.8-alpine | `gitops/apps/demo-app/overlays/<env>/release.yaml` |
+| nginx image (demo app) | 1.31.8-alpine | `gitops/apps/demo-app/envs/<env>/release.yaml` (`image.tag`) |
+| base-app chart (in this repository) | 1.0.0 | `gitops/charts/base-app/Chart.yaml` |
 | GitHub Actions runner | 2.338.2 | `ansible/inventories/ops/group_vars/all.yml` |
 | kubeconform | v0.8.0 | `scripts/install-tools.sh` |
 | actionlint | 1.7.12 | `scripts/install-tools.sh` |
 | shellcheck | v0.11.0 | `scripts/install-tools.sh` |
 | kubectl (workstation, CI) | v1.37.2 | `scripts/install-tools.sh` |
 | uv (Python environment) | 0.13.8 | `scripts/install-tools.sh` |
+| Helm (CLI, tests) | v4.3.2 | `scripts/install-tools.sh` |
 | containerd | Ubuntu 24.04 package | not pinned |

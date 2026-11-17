@@ -24,13 +24,14 @@ The result is a small nginx app that shows **K8s Demo**, the environment, the re
 9. [Check that it works](#check-that-it-works)
 10. [Everyday operations](#everyday-operations)
 11. [Promotion](#promotion)
-12. [Secrets and access](#secrets-and-access)
-13. [Guard rails](#guard-rails)
-14. [Contributing](#contributing)
-15. [Running Ansible by hand](#running-ansible-by-hand)
-16. [Demo runbook](#demo-runbook)
-17. [Troubleshooting](#troubleshooting)
-18. [Known limitations](#known-limitations)
+12. [Add a new app with the base chart](#add-a-new-app-with-the-base-chart)
+13. [Secrets and access](#secrets-and-access)
+14. [Guard rails](#guard-rails)
+15. [Contributing](#contributing)
+16. [Running Ansible by hand](#running-ansible-by-hand)
+17. [Demo runbook](#demo-runbook)
+18. [Troubleshooting](#troubleshooting)
+19. [Known limitations](#known-limitations)
 
 ## Current status
 
@@ -58,7 +59,8 @@ Nothing touches a server until a person turns automation on **and** presses the 
 | **F5 NGINX Ingress Controller** | The single entry point on `.200`: routes `http://<host>` to the right service by host name. |
 | **Argo CD** | Runs inside each cluster, watches this repository and makes the cluster match it. It also undoes manual changes (self-healing). |
 | **App of apps, sync waves** | Ansible creates one *root* Argo CD Application per cluster pointing at `gitops/clusters/<env>/`; that folder lists the other Applications, installed in order (wave 0, 1, 2…). |
-| **Kustomize overlay** | `base/` holds what every environment shares; `overlays/<env>/` holds the differences. |
+| **Base Helm chart** | `gitops/charts/base-app` is one generic chart (Deployment, Service, Ingress, ConfigMap, optional autoscaler and disruption budget). Every app is rendered with it from its own values files, so a new app needs no templates. |
+| **Kustomize overlay** | Used for the platform pieces (Argo CD, MetalLB): `base/` holds what every environment shares; `overlays/<env>/` holds the differences. |
 | **Kyverno** | A policy engine. Here it rejects any object labelled for a different environment than the cluster's own. |
 | **Self-hosted runner** | A small VM in the LAN (`ops1`) that runs GitHub Actions jobs, because GitHub's own runners cannot reach private servers. |
 | **GitHub environment** | A named set of secrets plus rules (for example, "prod needs an approval") that a workflow job must pass through. |
@@ -107,7 +109,7 @@ Running it again is safe: finished steps are skipped.
 | 3 | `kyverno-policies` | `gitops/platform/kyverno/policies` |
 | 4 | `nginx-ingress` | Helm chart `nginx-ingress` 2.8.1 + `gitops/platform/nginx-ingress/values*.yaml` |
 | 5 | `argocd` | `gitops/platform/argocd/overlays/<env>` (Argo CD manages itself) |
-| 6 | `demo-app` | `gitops/apps/demo-app/overlays/<env>` |
+| 6 | `demo-app` | chart `gitops/charts/base-app` + `gitops/apps/demo-app/values.yaml` and `envs/<env>/{env,release}.yaml` |
 
 Every Application has automatic sync with `prune` and `selfHeal`: what is in Git is what runs.
 
@@ -161,8 +163,9 @@ gitops/
   platform/metallb/config/              address pool per environment
   platform/nginx-ingress/               Helm values (+ fixed ingress IP per environment)
   platform/kyverno/                     Helm values and the environment policy
-  apps/demo-app/base/                   namespace, deployment, service, ingress, nginx page template
-  apps/demo-app/overlays/<env>/         env.yaml = environment settings, release.yaml = promotable release
+  charts/base-app/                      shared Helm chart every app is rendered with
+  apps/demo-app/values.yaml             demo-app settings for every environment, including the nginx page template
+  apps/demo-app/envs/<env>/             env.yaml = environment settings, release.yaml = promotable release
 scripts/
   validate.sh                           every check CI runs
   install-tools.sh                      pinned toolchain in ~/.venvs/k8s-demo and ~/.local/bin (no sudo)
@@ -219,7 +222,7 @@ All values are plain text; CI fails when two files disagree, so change every pla
 | Node names and addresses | `ansible/inventories/<env>/hosts.yml` |
 | Subnet, VIP, MetalLB range, ingress IP | `ansible/inventories/<env>/group_vars/all.yml`, `gitops/platform/metallb/config/overlays/<env>/ip-pool.yaml`, `gitops/platform/nginx-ingress/values-<env>.yaml` |
 | Proxy | `ansible/inventories/<env>/group_vars/all.yml`, `ansible/inventories/ops/group_vars/all.yml`, `gitops/platform/argocd/overlays/<env>/proxy-env-*.yaml` |
-| Host names (`*.k8sdemo.vn`) | `ansible/inventories/<env>/group_vars/all.yml`, `gitops/apps/demo-app/overlays/<env>/env.yaml`, `gitops/platform/argocd/overlays/<env>/` |
+| Host names (`*.k8sdemo.vn`) | `ansible/inventories/<env>/group_vars/all.yml`, `gitops/apps/<app>/envs/<env>/env.yaml`, `gitops/platform/argocd/overlays/<env>/` |
 | Reviewers (`haison8x`, `haison9x`) | `.github/CODEOWNERS`, `scripts/github-setup.sh` (`REVIEWERS`) |
 | Repository URL | `ansible/group_vars/all/common.yml`, `gitops/clusters/<env>/*.yaml`, `ansible/inventories/ops/group_vars/all.yml`, `scripts/github-setup.sh` (`REPO`) |
 | Versions | see `docs/VERSIONS.md` |
@@ -286,9 +289,10 @@ The page shows the environment banner, **K8s Demo**, the release version and mes
 
 | I want to… | Do this | What happens |
 |---|---|---|
-| Change the app in dev | Edit `gitops/apps/demo-app/overlays/dev/release.yaml`, open a PR | CI validates; after merge dev's Argo CD rolls it out |
-| Promote | Actions → **promote** → `dev-to-staging` or `staging-to-prod` | The bot opens a PR; a code owner approves; merge deploys |
-| Change environment settings | Edit `overlays/<env>/env.yaml` (replicas, host, banner) | Never promoted |
+| Change the app in dev | Edit `gitops/apps/demo-app/envs/dev/release.yaml`, open a PR | CI validates; after merge dev's Argo CD rolls it out |
+| Promote | Actions → **promote** → `dev-to-staging` or `staging-to-prod`, app `demo-app` (default) | The bot opens a PR; a code owner approves; merge deploys |
+| Change environment settings | Edit `gitops/apps/<app>/envs/<env>/env.yaml` (replicas, host, banner) | Never promoted |
+| Add an app | See [Add a new app with the base chart](#add-a-new-app-with-the-base-chart) | Argo CD installs it |
 | Upgrade a platform component | Change the version in `gitops/clusters/dev/…`, then staging, then prod (one PR each) | Argo CD upgrades that cluster |
 | Add a node | Add it to `ansible/inventories/<env>/hosts.yml`, merge, run **ansible** with limit `<first-cp>,<new-node>` | Node joins |
 | Rebuild an environment | **ansible** with playbook `reset` and confirm = env name, then `site` | Cluster wiped and rebuilt |
@@ -299,7 +303,7 @@ The page shows the environment banner, **K8s Demo**, the release version and mes
 
 ## Promotion
 
-Each environment's overlay has two files. `env.yaml` holds what belongs to the environment (replicas, host name, banner colour) and is never promoted. `release.yaml` holds what is being released (the image, `APP_VERSION`, `APP_MESSAGE`) and is copied unchanged to the next environment.
+Each environment folder `gitops/apps/<app>/envs/<env>/` has two Helm values files. `env.yaml` holds what belongs to the environment (replicas, host name, banner colour) and is never promoted. `release.yaml` holds what is being released (the image, `APP_VERSION`, `APP_MESSAGE`) and is copied unchanged to the next environment.
 
 ```
 edit dev release.yaml → PR, CI green, merge → dev updates
@@ -307,7 +311,60 @@ edit dev release.yaml → PR, CI green, merge → dev updates
 → promote staging-to-prod → bot PR, code owner approves, merge → prod updates
 ```
 
-Changes to `base/`, `gitops/platform/`, roles or workflows reach every environment at once, so they always need a code owner review. Keep anything that should roll out gradually in `release.yaml` or in the per-environment Application files.
+Changes to `gitops/charts/`, an app's `values.yaml`, `gitops/platform/`, roles or workflows reach every environment at once, so they always need a code owner review. Keep anything that should roll out gradually in `release.yaml` or in the per-environment Application files.
+
+## Add a new app with the base chart
+
+Every application is rendered with one shared chart, `gitops/charts/base-app`: a Deployment, a Service, and optionally an Ingress, a ConfigMap built from files, a HorizontalPodAutoscaler and a PodDisruptionBudget. A new app needs only values files and one Argo CD Application per environment, no templates. Every option and its default is described in `gitops/charts/base-app/values.yaml`.
+
+| File | Holds | Promoted |
+|---|---|---|
+| `gitops/apps/<app>/values.yaml` | settings shared by every environment: image repository, port, probes, resources, files | no (shared: code owner review) |
+| `gitops/apps/<app>/envs/<env>/env.yaml` | `environment`, replicas, host name, environment variables of that environment | never |
+| `gitops/apps/<app>/envs/<env>/release.yaml` | `image.tag` and release variables such as `APP_VERSION` | by the **promote** button |
+
+Example for an app called `shop`:
+
+1. `gitops/apps/shop/values.yaml`
+   ```yaml
+   image:
+     repository: ghcr.io/my-org/shop
+   containerPort: 8080
+   probes:
+     path: /healthz
+   resources:
+     requests: {cpu: 50m, memory: 64Mi}
+     limits: {memory: 256Mi}
+   ingress:
+     enabled: true
+   ```
+2. `gitops/apps/shop/envs/dev/env.yaml`
+   ```yaml
+   environment: dev              # must match the folder; CI checks it
+   replicaCount: 1
+   ingress:
+     host: shop.dev.k8sdemo.vn   # one label under the environment's host
+   env:
+     LOG_LEVEL: debug
+   ```
+3. `gitops/apps/shop/envs/dev/release.yaml`
+   ```yaml
+   image:
+     tag: "1.0.0"
+   env:
+     APP_VERSION: "1.0.0"
+   ```
+4. Copy `gitops/clusters/dev/demo-app.yaml` to `gitops/clusters/dev/shop.yaml` and change `metadata.name`, `helm.releaseName`, the three `valueFiles` paths and `destination.namespace` (one namespace per app, for example `shop`). Keep `managedNamespaceMetadata`: it opts the namespace into the environment policy.
+5. Render it, run the checks, open a pull request and merge; dev's Argo CD installs the app:
+   ```bash
+   helm template shop gitops/charts/base-app --namespace shop \
+     -f gitops/apps/shop/values.yaml -f gitops/apps/shop/envs/dev/env.yaml -f gitops/apps/shop/envs/dev/release.yaml
+   bash scripts/validate.sh
+   ```
+6. Add `shop.dev.k8sdemo.vn` to the hosts file or LAN DNS, with the same IP as `dev.k8sdemo.vn`.
+7. Repeat steps 2–4 for staging, then prod (one pull request each). From then on, release with Actions → **promote**, app `shop`.
+
+Allowed host names are the environment's own host or one label under it: `*.dev.k8sdemo.vn` in dev, `*.staging.k8sdemo.vn` in staging, `*.k8sdemo.vn` in prod (but not `shop.dev.k8sdemo.vn` in prod). CI rejects anything else. A change to the chart itself reaches every app in every environment at the next sync, so it needs a code owner review; `scripts/validate.sh` lints and renders every app with it.
 
 ## Secrets and access
 
@@ -360,9 +417,9 @@ ansible-playbook -i inventories/dev/hosts.yml reset.yml --private-key ~/.ssh/k8s
 
 1. **The three clusters.** Open `http://argocd.dev.k8sdemo.vn`, `http://argocd.staging.k8sdemo.vn` and `http://argocd.k8sdemo.vn`: every application is Synced and Healthy; note the environment banners.
 2. **The app.** Open the three app URLs. Refresh prod a few times: the pod name changes between three pods on three workers.
-3. **A change in dev.** Edit `APP_MESSAGE` in `gitops/apps/demo-app/overlays/dev/release.yaml`, open a PR, merge after CI is green. Watch dev's Argo CD roll the pods and the page change.
+3. **A change in dev.** Edit `APP_MESSAGE` in `gitops/apps/demo-app/envs/dev/release.yaml`, open a PR, merge after CI is green. Watch dev's Argo CD roll the pods and the page change.
 4. **Promotion.** Actions → **promote** → `dev-to-staging`. Show the bot's PR containing a single file, approve, merge. Repeat with `staging-to-prod`.
-5. **Guard rails.** Open a PR that edits both the dev and prod overlays: the **validate** check fails. On prod, try `kubectl -n demo create configmap unlabelled --from-literal=x=1`: the cluster denies it.
+5. **Guard rails.** Open a PR that edits both `envs/dev/` and `envs/prod/` of the demo app: the **validate** check fails. On prod, try `kubectl -n demo create configmap unlabelled --from-literal=x=1`: the cluster denies it.
 6. **Self-healing.** `kubectl -n demo scale deployment demo-app --replicas=1` on prod: Argo CD puts it back to three.
 7. **High availability.** Power off `prod-cp1`: `kubectl get nodes` still answers through `172.20.0.100`. Power off a worker: its pod is rescheduled and the page keeps answering.
 
@@ -390,5 +447,6 @@ ansible-playbook -i inventories/dev/hosts.yml reset.yml --private-key ~/.ssh/k8s
 - Kyverno runs one admission replica: while that pod restarts, writes to the `demo` namespace are briefly refused.
 - Changing `kube_minor` or `calico_version` does not upgrade a running cluster; upgrades are a manual, planned operation (or `reset` + `site`).
 - Changing `ARGOCD_ADMIN_PASSWORD` after the first build has no effect.
+- A change to `gitops/charts/base-app` reaches every app in every environment at the next sync. The chart is not versioned per environment yet; publishing it as a versioned OCI chart would allow dev-first rollouts.
 - On a host built before the environment marker existed, the first drift run reports the marker as a change.
 - The Kubernetes patch version and containerd come from the latest packages of their channels; only the minor version is pinned.

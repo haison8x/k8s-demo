@@ -2,6 +2,8 @@ extends: default
 
 ignore: |
   tests/out/
+  # Helm templates are Go templates, not YAML; helm lint checks them.
+  gitops/charts/*/templates/
 
 rules:
   line-length:

@@ -37,6 +37,16 @@ bash tests/ansible/preflight.sh
 step "reset guard"
 bash tests/ansible/reset.sh
 
+step "helm lint: base chart with every app and environment"
+for app_dir in gitops/apps/*/; do
+  app=$(basename "$app_dir")
+  for env in "${ENVS[@]}"; do
+    helm lint --strict --quiet gitops/charts/base-app --namespace "$app" \
+      -f "$app_dir/values.yaml" -f "$app_dir/envs/$env/env.yaml" -f "$app_dir/envs/$env/release.yaml" >/dev/null
+  done
+done
+echo "ok"
+
 step "kyverno policy tests"
 kyverno test tests/kyverno
 

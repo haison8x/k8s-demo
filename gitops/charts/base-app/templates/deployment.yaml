@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "base-app.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "base-app.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "base-app.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "base-app.selectorLabels" . | nindent 8 }}
+        k8sdemo.vn/env: {{ include "base-app.environment" . }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/files: {{ toYaml .Values.files | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- if eq .Values.podAntiAffinity "soft" }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    {{- include "base-app.selectorLabels" . | nindent 20 }}
+      {{- end }}
+      containers:
+        - name: {{ .Values.containerName }}
+          image: {{ include "base-app.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.containerPort }}
+          {{- with .Values.env }}
+          env:
+            {{- range $name, $value := . }}
+            - name: {{ $name }}
+              value: {{ toString $value | quote }}
+            {{- end }}
+          {{- end }}
+          {{- with .Values.probes.path }}
+          readinessProbe:
+            httpGet:
+              path: {{ . }}
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: {{ . }}
+              port: http
+            periodSeconds: 10
+          {{- end }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- if .Values.files }}
+          volumeMounts:
+            - name: files
+              mountPath: {{ .Values.filesMountPath }}
+              readOnly: true
+          {{- end }}
+      {{- if .Values.files }}
+      volumes:
+        - name: files
+          configMap:
+            name: {{ include "base-app.fullname" . }}-files
+      {{- end }}

@@ -105,6 +105,39 @@ def build_tree(root, overrides=None):
               rules:
                 - host: argocd.{HOSTS[env]}
             """)
+        write(root, f"gitops/clusters/{env}/demo-app.yaml", f"""
+            apiVersion: argoproj.io/v1alpha1
+            kind: Application
+            metadata:
+              name: demo-app
+              namespace: argocd
+            spec:
+              project: default
+              sources:
+                - repoURL: {REPO}
+                  targetRevision: main
+                  path: gitops/charts/base-app
+                  helm:
+                    valueFiles:
+                      - $values/gitops/apps/demo-app/values.yaml
+                      - $values/gitops/apps/demo-app/envs/{env}/env.yaml
+                      - $values/gitops/apps/demo-app/envs/{env}/release.yaml
+                - repoURL: {REPO}
+                  targetRevision: main
+                  ref: values
+              destination:
+                server: https://kubernetes.default.svc
+                namespace: demo
+              syncPolicy:
+                automated:
+                  prune: true
+                  selfHeal: true
+            """)
+        write(root, f"gitops/apps/demo-app/envs/{env}/env.yaml", f"""
+            environment: {env}
+            ingress:
+              host: {HOSTS[env]}
+            """)
     for rel, text in (overrides or {}).items():
         write(root, rel, text)
 
@@ -183,6 +216,62 @@ class CheckTreeTest(unittest.TestCase):
         res = run_guard(self.root)
         self.assertNotEqual(res.returncode, 0)
         self.assertIn("prod: ingress loadBalancerIPs", res.stdout)
+
+    def test_app_values_of_another_environment_fail(self):
+        build_tree(self.root)
+        p = self.root / "gitops/clusters/prod/demo-app.yaml"
+        p.write_text(p.read_text().replace("envs/prod/", "envs/dev/"), newline="\n")
+        res = run_guard(self.root)
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("prod application demo-app points at dev path", res.stdout)
+
+    def test_app_env_file_declaring_another_environment_fails(self):
+        build_tree(self.root)
+        p = self.root / "gitops/apps/demo-app/envs/staging/env.yaml"
+        p.write_text(p.read_text().replace("environment: staging", "environment: prod"), newline="\n")
+        res = run_guard(self.root)
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("staging: gitops/apps/demo-app/envs/staging/env.yaml declares environment prod", res.stdout)
+
+    def test_app_ingress_host_of_another_environment_fails(self):
+        build_tree(self.root)
+        p = self.root / "gitops/apps/demo-app/envs/dev/env.yaml"
+        p.write_text(p.read_text().replace("host: dev.k8sdemo.vn", "host: k8sdemo.vn"), newline="\n")
+        res = run_guard(self.root)
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("uses host k8sdemo.vn", res.stdout)
+
+
+    def test_new_app_host_under_the_environment_domain_passes(self):
+        build_tree(self.root, {"gitops/apps/shop/envs/dev/env.yaml": """
+            environment: dev
+            ingress:
+              host: shop.dev.k8sdemo.vn
+            """})
+        res = run_guard(self.root)
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+
+    def test_new_app_host_under_another_environment_domain_fails(self):
+        for host in ("shop.k8sdemo.vn", "shop.staging.k8sdemo.vn"):
+            with self.subTest(host=host):
+                build_tree(self.root, {"gitops/apps/shop/envs/dev/env.yaml": f"""
+                    environment: dev
+                    ingress:
+                      host: {host}
+                    """})
+                res = run_guard(self.root)
+                self.assertNotEqual(res.returncode, 0)
+                self.assertIn(f"uses host {host}", res.stdout)
+
+    def test_prod_app_host_must_not_sit_under_another_environment(self):
+        build_tree(self.root, {"gitops/apps/shop/envs/prod/env.yaml": """
+            environment: prod
+            ingress:
+              host: shop.dev.k8sdemo.vn
+            """})
+        res = run_guard(self.root)
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("uses host shop.dev.k8sdemo.vn", res.stdout)
 
 
 class RealTreeTest(unittest.TestCase):

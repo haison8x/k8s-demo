@@ -3,13 +3,14 @@
 
   env-guard.py check-tree [--root DIR]
       Cross-checks the repository: every cluster's Applications point only at
-      that environment's paths, ingress hosts and proxy settings match the
-      environment's inventory.
+      that environment's paths, each app's envs/<env>/env.yaml names its own
+      environment, ingress hosts and proxy settings match the environment's
+      inventory.
 
   env-guard.py check-diff BASE_REF [--root DIR]
       Fails when the changes since BASE_REF touch more than one environment
       (promotion happens one environment at a time). Shared paths such as
-      base/, roles and workflows do not count; CODEOWNERS reviews them.
+      gitops/charts/, roles and workflows do not count; CODEOWNERS reviews them.
 
 Exits 1 and prints one line per problem.
 """
@@ -23,6 +24,7 @@ import yaml
 ENVS = ("dev", "staging", "prod")
 REPO_URL = "https://github.com/haison8x/k8s-demo.git"
 SHARED_PATHS = ("gitops/platform/kyverno/policies",)
+SHARED_PREFIXES = ("gitops/charts/",)
 
 
 def load_all(path):
@@ -37,7 +39,7 @@ def env_in_path(path):
     """Return the environment a path is specific to, or None if shared."""
     parts = path.replace("\\", "/").split("/")
     for i, part in enumerate(parts):
-        if part in ("overlays", "clusters", "inventories") and i + 1 < len(parts) and parts[i + 1] in ENVS:
+        if part in ("overlays", "envs", "clusters", "inventories") and i + 1 < len(parts) and parts[i + 1] in ENVS:
             return parts[i + 1]
         for env in ENVS:
             if part == f"values-{env}.yaml":
@@ -69,7 +71,7 @@ def check_applications(root, env, problems):
                     if other and other != env:
                         problems.append(f"{env} application {name} points at {other} path {p}")
                     elif other is None and "path" in src and p == src["path"] and not (
-                            p.endswith("/base") or p in SHARED_PATHS):
+                            p.endswith("/base") or p in SHARED_PATHS or p.startswith(SHARED_PREFIXES)):
                         problems.append(f"{env} application {name} uses non-environment path {p}")
 
 
@@ -83,14 +85,31 @@ def walk(node):
             yield from walk(v)
 
 
+def host_allowed(host, inv):
+    """The environment's own hosts, or one label directly under its app host
+    (shop.dev.k8sdemo.vn in dev, shop.k8sdemo.vn in prod)."""
+    if host in (inv["app_host"], inv["argocd_host"]):
+        return True
+    suffix = "." + inv["app_host"]
+    return host.endswith(suffix) and "." not in host[: -len(suffix)] and host != suffix
+
+
 def check_ingress_hosts(root, env, inv, problems):
-    allowed = {inv["app_host"], inv["argocd_host"]}
-    for f in sorted(root.glob(f"gitops/**/overlays/{env}/*.yaml")):
+    allowed = {inv["app_host"], inv["argocd_host"], "*." + inv["app_host"]}
+    files = list(root.glob(f"gitops/**/overlays/{env}/*.yaml")) + list(root.glob(f"gitops/apps/*/envs/{env}/*.yaml"))
+    for f in sorted(files):
         for doc in load_all(f):
             for node in walk(doc):
                 host = node.get("host")
-                if isinstance(host, str) and host not in allowed:
+                if isinstance(host, str) and not host_allowed(host, inv):
                     problems.append(f"{env}: {f.relative_to(root)} uses host {host}, allowed {sorted(allowed)}")
+
+
+def check_app_env_files(root, env, problems):
+    for f in sorted(root.glob(f"gitops/apps/*/envs/{env}/env.yaml")):
+        declared = (load_all(f) or [{}])[0].get("environment")
+        if declared != env:
+            problems.append(f"{env}: {f.relative_to(root).as_posix()} declares environment {declared}")
 
 
 def check_proxy(root, env, inv, problems):
@@ -130,6 +149,7 @@ def check_tree(root):
         if inv.get("env") != env:
             problems.append(f"inventory {env} declares env {inv.get('env')!r}")
         check_applications(root, env, problems)
+        check_app_env_files(root, env, problems)
         check_ingress_hosts(root, env, inv, problems)
         check_proxy(root, env, inv, problems)
         check_addresses(root, env, inv, problems)

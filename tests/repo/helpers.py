@@ -53,3 +53,23 @@ def playbook_listing(flag, playbook="site.yml", env_name="prod"):
          str(ANSIBLE / playbook), flag],
         check=True, capture_output=True, text=True, env=ansible_env(),
     ).stdout
+
+
+CHART = ROOT / "gitops" / "charts" / "base-app"
+APPS = ROOT / "gitops" / "apps"
+
+
+def helm_template(values_files=(), sets=(), release="app", namespace="apps", check=True):
+    """Render gitops/charts/base-app with `helm template`; return the completed process."""
+    cmd = ["helm", "template", release, str(CHART), "--namespace", namespace]
+    for f in values_files:
+        cmd += ["-f", str(f)]
+    for s in sets:
+        cmd += ["--set", s]
+    return subprocess.run(cmd, capture_output=True, text=True, check=check)
+
+
+def app_values(app, env):
+    """The values files Argo CD passes for one app in one environment, in order."""
+    base = APPS / app
+    return [base / "values.yaml", base / "envs" / env / "env.yaml", base / "envs" / env / "release.yaml"]

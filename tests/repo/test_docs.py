@@ -17,11 +17,14 @@ FACTS = [
     "ansible/ops.yml", "release.yaml", "env.yaml",
 ]
 SECTIONS = ["overview", "status", "concepts", "architecture", "environments", "layout", "switch", "before",
-            "setup", "verify", "operations", "promotion", "secrets", "guard-rails", "contributing", "manual",
+            "setup", "verify", "operations", "promotion", "new-app", "secrets", "guard-rails", "contributing", "manual",
             "demo", "troubleshooting", "limitations"]
 # Onboarding topics both documents must cover.
 TOPICS = ["AUTOMATION_ENABLED", "k8s-demo-promoter", "ssh-keygen", "ARGOCD_ADMIN_PASSWORD", "SSH_PRIVATE_KEY",
-          "PROMOTER_PRIVATE_KEY", "registry.k8s.io", "--dry-run", "confirm_reset", "docs/VERSIONS.md"]
+          "PROMOTER_PRIVATE_KEY", "registry.k8s.io", "--dry-run", "confirm_reset", "docs/VERSIONS.md",
+          "gitops/charts/base-app", "gitops/apps/demo-app/envs/dev/release.yaml", "Add a new app with the base chart"]
+# Paths of the old Kustomize layout of the demo app must not come back.
+STALE = ["demo-app/overlays", "demo-app/base", "apps/demo-app/{base,overlays"]
 # Assembled from pieces so this file does not match its own check.
 FORBIDDEN = re.compile("|".join(["Clau" + "de", "Anthro" + "pic", "super" + "powers", "agen" + "tic",
                                  "Co-Auth" + "ored-By"]), re.IGNORECASE)
@@ -74,6 +77,10 @@ class PagesGuideTest(unittest.TestCase):
         for fact in FACTS + TOPICS:
             self.assertIn(fact, self.html)
 
+    def test_no_stale_paths(self):
+        for stale in STALE:
+            self.assertNotIn(stale.replace("<", "&lt;").replace(">", "&gt;"), self.html)
+
     def test_navigation_links_every_section(self):
         for section in SECTIONS:
             self.assertIn(f'href="#{section}"', self.html)
@@ -85,6 +92,8 @@ class ReadmeTest(unittest.TestCase):
         self.assertIn("https://haison8x.github.io/k8s-demo/", text)
         for fact in FACTS + TOPICS:
             self.assertIn(fact, text)
+        for stale in STALE:
+            self.assertNotIn(stale, text)
 
 
 class NoToolMentionsTest(unittest.TestCase):

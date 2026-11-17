@@ -10,21 +10,17 @@ from pathlib import Path
 
 from tests.repo.helpers import ROOT
 
-RELEASE = "gitops/apps/demo-app/overlays/{}/release.yaml"
+RELEASE = "gitops/apps/demo-app/envs/{}/release.yaml"
 
 
-def release(version, image="nginx:1.0"):
+def release(version, tag="1.0"):
     """A release.yaml with the same structure as the real ones."""
     return textwrap.dedent(f"""\
-        spec:
-          template:
-            spec:
-              containers:
-                - name: nginx
-                  image: {image}
-                  env:
-                    - name: APP_VERSION
-                      value: "{version}"
+        image:
+          tag: {tag}
+        env:
+          APP_VERSION: "{version}"
+          APP_MESSAGE: Hello
         """)
 
 
@@ -85,19 +81,19 @@ class CheckDiffTest(GitRepoCase):
 
 
 class PromoteTest(GitRepoCase):
-    def promote(self, path):
+    def promote(self, path, *app):
         env = dict(os.environ, PROMOTE_LOCAL_ONLY="1")
-        return subprocess.run(["bash", str(ROOT / "scripts/promote.sh"), path], cwd=self.repo,
+        return subprocess.run(["bash", str(ROOT / "scripts/promote.sh"), path, *app], cwd=self.repo,
                               capture_output=True, text=True, env=env)
 
     def test_promotion_copies_the_release_file_on_a_new_branch(self):
-        self.write(RELEASE.format("dev"), release("2.0.0", "nginx:2.0"))
+        self.write(RELEASE.format("dev"), release("2.0.0", "2.0"))
         git(self.repo, "commit", "-q", "-am", "dev release 2.0.0")
         res = self.promote("dev-to-staging")
         self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
         self.assertEqual((self.repo / RELEASE.format("staging")).read_text(),
                          (self.repo / RELEASE.format("dev")).read_text())
-        self.assertTrue(git(self.repo, "rev-parse", "--abbrev-ref", "HEAD").startswith("promote/dev-to-staging-"))
+        self.assertTrue(git(self.repo, "rev-parse", "--abbrev-ref", "HEAD").startswith("promote/demo-app-dev-to-staging-"))
         self.assertIn("Promote demo-app dev to staging (2.0.0)", git(self.repo, "log", "-1", "--format=%s"))
         changed = git(self.repo, "show", "--name-only", "--format=", "HEAD").split()
         self.assertEqual(changed, [RELEASE.format("staging")])
@@ -107,6 +103,25 @@ class PromoteTest(GitRepoCase):
         self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
         self.assertIn("nothing to promote", res.stdout)
         self.assertEqual(git(self.repo, "rev-parse", "--abbrev-ref", "HEAD").strip(), "main")
+
+    def test_another_app_is_promoted_by_name(self):
+        shop = "gitops/apps/shop/envs/{}/release.yaml"
+        for env in ("dev", "staging", "prod"):
+            self.write(shop.format(env), release("1.0.0"))
+        self.write(shop.format("dev"), release("3.1.0", "3.1"))
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "shop")
+        res = self.promote("dev-to-staging", "shop")
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        self.assertIn("Promote shop dev to staging (3.1.0)", git(self.repo, "log", "-1", "--format=%s"))
+        self.assertEqual(git(self.repo, "show", "--name-only", "--format=", "HEAD").split(), [shop.format("staging")])
+
+    def test_unknown_or_unsafe_app_name_fails(self):
+        for app in ("missing", "../demo-app", "Shop"):
+            with self.subTest(app=app):
+                res = self.promote("dev-to-staging", app)
+                self.assertNotEqual(res.returncode, 0)
+                self.assertIn("unknown app", res.stderr)
 
     def test_unknown_promotion_path_fails(self):
         res = self.promote("dev-to-prod")

@@ -116,13 +116,22 @@ class WorkflowBehaviourTest(unittest.TestCase):
         promote = next(s for s in steps if "promote.sh" in s.get("run", ""))
         self.assertEqual(promote["env"]["GH_TOKEN"], f"${{{{ steps.{token_step['id']}.outputs.token }}}}")
 
+    def test_promote_takes_the_app_name(self):
+        wf = workflow("promote.yml")
+        app = wf["on"]["workflow_dispatch"]["inputs"]["app"]
+        self.assertEqual(app["default"], "demo-app")
+        promote = next(s for s in wf["jobs"]["promote"]["steps"] if "promote.sh" in s.get("run", ""))
+        self.assertEqual(promote["env"]["APP"], "${{ inputs.app }}")
+        self.assertIn('"$APP"', promote["run"])
+
 
 class CodeownersTest(unittest.TestCase):
     REQUIRED = [
-        "/gitops/apps/demo-app/overlays/prod/", "/gitops/apps/demo-app/overlays/staging/",
+        "/gitops/apps/*/envs/prod/", "/gitops/apps/*/envs/staging/", "/gitops/apps/*/values.yaml",
+        "/gitops/charts/",
         "/gitops/clusters/prod/", "/gitops/clusters/staging/",
         "/ansible/inventories/prod/", "/ansible/inventories/staging/",
-        "/gitops/apps/demo-app/base/", "/gitops/platform/", "/ansible/roles/", "/ansible/*.yml",
+        "/gitops/platform/", "/ansible/roles/", "/ansible/*.yml",
         "/ansible/group_vars/", "/.github/", "/scripts/",
     ]
 

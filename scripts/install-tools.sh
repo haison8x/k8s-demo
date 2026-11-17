@@ -13,6 +13,7 @@ KUBECONFORM_VERSION=v0.8.0
 ACTIONLINT_VERSION=1.7.12
 SHELLCHECK_VERSION=v0.11.0
 KYVERNO_VERSION=v1.20.0
+HELM_VERSION=v4.3.2
 PYTHON_PACKAGES=(ansible-core==2.21.6 ansible-lint==26.11.0 yamllint==1.38.0 pyyaml==6.0.3
                  passlib==1.7.4 bcrypt==5.0.0 netaddr==1.3.0)
 
@@ -50,6 +51,10 @@ fi
 if ! "$BIN/kyverno" version 2>/dev/null | grep -q "$KYVERNO_VERSION"; then
   fetch "https://github.com/kyverno/kyverno/releases/download/$KYVERNO_VERSION/kyverno-cli_${KYVERNO_VERSION}_linux_x86_64.tar.gz" | tar -xz -C "$tmp" kyverno
   install -m 0755 "$tmp/kyverno" "$BIN/kyverno"
+fi
+if ! "$BIN/helm" version --short 2>/dev/null | grep -q "$HELM_VERSION"; then
+  fetch "https://get.helm.sh/helm-$HELM_VERSION-linux-amd64.tar.gz" | tar -xz -C "$tmp" linux-amd64/helm
+  install -m 0755 "$tmp/linux-amd64/helm" "$BIN/helm"
 fi
 
 export PATH="$VENV/bin:$BIN:$PATH"

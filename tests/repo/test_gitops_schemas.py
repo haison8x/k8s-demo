@@ -1,8 +1,8 @@
-"""Every GitOps manifest renders with kustomize and validates against Kubernetes/CRD schemas."""
+"""Every GitOps manifest renders (kustomize or the base Helm chart) and validates against Kubernetes/CRD schemas."""
 import subprocess
 import unittest
 
-from tests.repo.helpers import ENVS, ROOT
+from tests.repo.helpers import APPS, ENVS, ROOT, app_values, helm_template
 
 GITOPS = ROOT / "gitops"
 CRD_SCHEMAS = ("https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/"
@@ -36,6 +36,14 @@ class GitopsSchemaTest(unittest.TestCase):
                 built = subprocess.run(["kubectl", "kustomize", str(d)], capture_output=True, text=True)
                 self.assertEqual(built.returncode, 0, built.stderr[-2000:])
                 kubeconform(built.stdout, d.relative_to(ROOT))
+
+    def test_every_app_renders_with_the_base_chart_and_validates(self):
+        apps = sorted(p.name for p in APPS.iterdir() if (p / "values.yaml").exists())
+        self.assertIn("demo-app", apps)
+        for app in apps:
+            for env in ENVS:
+                with self.subTest(app=app, env=env):
+                    kubeconform(helm_template(app_values(app, env), release=app).stdout, f"{app} {env}")
 
     def test_every_application_validates(self):
         files = sorted((GITOPS / "clusters").glob("*/*.yaml"))

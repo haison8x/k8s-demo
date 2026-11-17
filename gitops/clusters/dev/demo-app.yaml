@@ -7,10 +7,20 @@ metadata:
     argocd.argoproj.io/sync-wave: "6"
 spec:
   project: default
-  source:
-    repoURL: https://github.com/haison8x/k8s-demo.git
-    targetRevision: main
-    path: gitops/apps/demo-app/overlays/dev
+  sources:
+    # The shared chart, rendered with this app's values for dev.
+    - repoURL: https://github.com/haison8x/k8s-demo.git
+      targetRevision: main
+      path: gitops/charts/base-app
+      helm:
+        releaseName: demo-app
+        valueFiles:
+          - $values/gitops/apps/demo-app/values.yaml
+          - $values/gitops/apps/demo-app/envs/dev/env.yaml
+          - $values/gitops/apps/demo-app/envs/dev/release.yaml
+    - repoURL: https://github.com/haison8x/k8s-demo.git
+      targetRevision: main
+      ref: values
   destination:
     server: https://kubernetes.default.svc
     namespace: demo
@@ -18,3 +28,9 @@ spec:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    # Opts the namespace into the require-matching-env Kyverno policy.
+    managedNamespaceMetadata:
+      labels:
+        k8sdemo.vn/managed: "true"

@@ -1,0 +1,7 @@
+apiVersion: v2
+name: base-app
+description: >-
+  Shared chart for a stateless web application in k8s-demo. An application only
+  supplies values files; see the README section "Add a new app with the base chart".
+type: application
+version: 1.0.0
