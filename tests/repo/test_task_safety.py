@@ -5,7 +5,7 @@ import yaml
 
 from tests.repo.helpers import ANSIBLE
 
-SECRET_VARS = ("control_plane_join_command", "control_plane_certificate_key", "argocd_admin_password",
+SECRET_VARS = ("control_plane_join_command", "control_plane_certificate_key", "argocd_bootstrap_admin_password",
                "runner_registration_token")
 CMD_MODULES = ("ansible.builtin.command", "ansible.builtin.shell")
 
@@ -55,6 +55,16 @@ class TaskSafetyTest(unittest.TestCase):
                 found.append(task.get("name"))
                 self.assertTrue(creates_of(task), f"{f.name}: '{task.get('name')}' has no creates:")
         self.assertGreaterEqual(len(found), 3, f"expected kubeadm init/join tasks, found {found}")
+
+    def test_tasks_copying_kubeconfigs_never_print_a_diff(self):
+        """Drift runs use --diff and workflow logs are public; admin.conf holds a private key."""
+        found = 0
+        for f, task in all_tasks():
+            body = yaml.safe_dump({k: v for k, v in task.items() if k != "name"})
+            if "admin.conf" in body and any(m in task for m in ("ansible.builtin.copy", "ansible.builtin.fetch")):
+                found += 1
+                self.assertIs(task.get("diff"), False, f"{f}: '{task.get('name')}' must set diff: false")
+        self.assertGreaterEqual(found, 1)
 
     def test_tasks_touching_secrets_do_not_log(self):
         for f, task in all_tasks():

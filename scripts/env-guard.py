@@ -6,9 +6,15 @@
       that environment's paths, ingress hosts and proxy settings match the
       environment's inventory.
 
+  env-guard.py check-diff BASE_REF [--root DIR]
+      Fails when the changes since BASE_REF touch more than one environment
+      (promotion happens one environment at a time). Shared paths such as
+      base/, roles and workflows do not count; CODEOWNERS reviews them.
+
 Exits 1 and prints one line per problem.
 """
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 
@@ -130,14 +136,28 @@ def check_tree(root):
     return problems
 
 
+def check_diff(root, base_ref):
+    changed = subprocess.run(["git", "-C", str(root), "diff", "--name-only", f"{base_ref}...HEAD"],
+                             check=True, capture_output=True, text=True).stdout.split()
+    envs = sorted({e for e in map(env_in_path, changed) if e}, key=ENVS.index)
+    if len(envs) > 1:
+        return [f"this change touches more than one environment: {', '.join(envs)} "
+                f"- split it into one pull request per environment"]
+    return []
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
+    default_root = Path(__file__).resolve().parents[1]
     tree = sub.add_parser("check-tree", help="cross-check the repository tree")
-    tree.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
+    tree.add_argument("--root", type=Path, default=default_root)
+    diff = sub.add_parser("check-diff", help="reject changes spanning several environments")
+    diff.add_argument("base_ref")
+    diff.add_argument("--root", type=Path, default=default_root)
     args = parser.parse_args(argv)
 
-    problems = check_tree(args.root)
+    problems = check_tree(args.root) if args.command == "check-tree" else check_diff(args.root, args.base_ref)
     for p in problems:
         print(f"env-guard: {p}")
     if problems:

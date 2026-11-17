@@ -1,0 +1,85 @@
+# Runs Ansible for one environment on the ops runner inside the LAN.
+# Started by a person (Actions > ansible > Run workflow), only from main;
+# the prod environment requires an approval before the job starts.
+name: ansible
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: Environment
+        type: choice
+        options: [dev, staging, prod]
+        required: true
+      playbook:
+        description: "site = build/converge, reset = wipe the cluster"
+        type: choice
+        options: [site, reset]
+        default: site
+      limit:
+        description: Optional host limit, e.g. stg-worker3
+        type: string
+        default: ""
+      confirm:
+        description: For reset only, type the environment name again
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ansible-${{ inputs.env }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    name: ${{ inputs.playbook }} ${{ inputs.env }}
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, k8s-demo-ops]
+    environment: ${{ inputs.env }}
+    timeout-minutes: 120
+    env:
+      TARGET_ENV: ${{ inputs.env }}
+      PLAYBOOK: ${{ inputs.playbook }}
+      LIMIT: ${{ inputs.limit }}
+      CONFIRM: ${{ inputs.confirm }}
+      ANSIBLE_FORCE_COLOR: "1"
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Require confirmation for reset
+        if: inputs.playbook == 'reset'
+        run: |
+          if [ "$CONFIRM" != "$TARGET_ENV" ]; then
+            echo "::error::Type the environment name ($TARGET_ENV) in 'confirm' to reset it."
+            exit 1
+          fi
+
+      - name: Install Ansible collections
+        run: ansible-galaxy collection install -r ansible/requirements.yml
+
+      - name: Write the SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          umask 077
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/ssh-key"
+
+      - name: Run the playbook
+        env:
+          ANSIBLE_CONFIG: ansible/ansible.cfg
+          ARGOCD_ADMIN_PASSWORD: ${{ secrets.ARGOCD_ADMIN_PASSWORD }}
+        run: |
+          args=(-i "ansible/inventories/$TARGET_ENV/hosts.yml" "ansible/$PLAYBOOK.yml"
+                --private-key "$RUNNER_TEMP/ssh-key")
+          if [ -n "$LIMIT" ]; then args+=(--limit "$LIMIT"); fi
+          if [ "$PLAYBOOK" = reset ]; then args+=(-e "confirm_reset=$CONFIRM"); fi
+          ansible-playbook "${args[@]}"
+
+      - name: Remove the SSH key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/ssh-key"

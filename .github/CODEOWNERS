@@ -1,0 +1,19 @@
+# Changes to these paths need a review from a code owner who is not the author.
+# Dev paths are deliberately not listed: a dev change merges once CI is green.
+
+# Staging and production
+/gitops/apps/demo-app/overlays/staging/ @haison8x @haison9x
+/gitops/apps/demo-app/overlays/prod/ @haison8x @haison9x
+/gitops/clusters/staging/ @haison8x @haison9x
+/gitops/clusters/prod/ @haison8x @haison9x
+/ansible/inventories/staging/ @haison8x @haison9x
+/ansible/inventories/prod/ @haison8x @haison9x
+
+# Shared by every environment: a change here reaches prod too
+/gitops/apps/demo-app/base/ @haison8x @haison9x
+/gitops/platform/ @haison8x @haison9x
+/ansible/roles/ @haison8x @haison9x
+/ansible/*.yml @haison8x @haison9x
+/ansible/group_vars/ @haison8x @haison9x
+/.github/ @haison8x @haison9x
+/scripts/ @haison8x @haison9x

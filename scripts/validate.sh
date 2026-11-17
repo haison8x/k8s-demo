@@ -13,6 +13,13 @@ step() { printf '\n==> %s\n' "$*"; }
 step "yamllint"
 yamllint -s .
 
+step "actionlint"
+actionlint
+
+step "shellcheck"
+shellcheck scripts/*.sh tests/ansible/*.sh
+echo "ok"
+
 step "ansible syntax-check"
 for env in "${ENVS[@]}"; do
   for pb in ansible/site.yml ansible/reset.yml; do

@@ -1,0 +1,40 @@
+# Promote the demo-app release one environment forward by opening a pull
+# request as the k8s-demo-promoter GitHub App. A person reviews and merges it.
+name: promote
+
+on:
+  workflow_dispatch:
+    inputs:
+      path:
+        description: Promotion
+        type: choice
+        options: [dev-to-staging, staging-to-prod]
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  promote:
+    name: ${{ inputs.path }}
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Get a GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.PROMOTER_CLIENT_ID }}
+          private-key: ${{ secrets.PROMOTER_PRIVATE_KEY }}
+
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Open the promotion pull request
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PROMOTION: ${{ inputs.path }}
+        run: bash scripts/promote.sh "$PROMOTION"

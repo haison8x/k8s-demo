@@ -47,7 +47,7 @@ check "#2e7d32"
 check "Version 9.9.9"
 check "smoke test message"
 check "Served by pod: $pod"
-if grep -q '\${' <<<"$body"; then
-  echo "FAIL: page contains an unsubstituted variable"; grep -n '\${' <<<"$body"; exit 1
+if grep -qF -- "\${" <<<"$body"; then
+  echo "FAIL: page contains an unsubstituted variable"; grep -nF -- "\${" <<<"$body"; exit 1
 fi
 echo "smoke test passed (image $image, pod $pod)"

@@ -1,0 +1,3 @@
+# Read from the environment (the "ansible" workflow sets it from a GitHub
+# environment secret) so it never appears on a command line or in a log.
+argocd_bootstrap_admin_password: "{{ lookup('ansible.builtin.env', 'ARGOCD_ADMIN_PASSWORD') }}"

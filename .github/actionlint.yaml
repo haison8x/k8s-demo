@@ -1,0 +1,4 @@
+# Custom label of the self-hosted runner on ops1 (see ansible/ops.yml).
+self-hosted-runner:
+  labels:
+    - k8s-demo-ops

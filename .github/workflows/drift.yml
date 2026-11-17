@@ -1,0 +1,63 @@
+# Nightly drift check: compares every node with the committed Ansible code in
+# check mode (no changes) and fails if anything was changed by hand.
+# Uses the <env>-drift environments, which need no approval and only exist on main.
+name: drift
+
+on:
+  schedule:
+    - cron: "0 19 * * *" # 02:00 Asia/Ho_Chi_Minh
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: drift
+  cancel-in-progress: false
+
+jobs:
+  drift:
+    name: drift ${{ matrix.env }}
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, k8s-demo-ops]
+    environment: ${{ matrix.env }}-drift
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        env: [dev, staging, prod]
+    env:
+      TARGET_ENV: ${{ matrix.env }}
+      ANSIBLE_FORCE_COLOR: "1"
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Ansible collections
+        run: ansible-galaxy collection install -r ansible/requirements.yml
+
+      - name: Write the SSH key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          umask 077
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$RUNNER_TEMP/ssh-key"
+
+      - name: Compare the nodes with Git
+        env:
+          ANSIBLE_CONFIG: ansible/ansible.cfg
+        run: |
+          set -o pipefail
+          ansible-playbook -i "ansible/inventories/$TARGET_ENV/hosts.yml" ansible/site.yml \
+            --check --diff --tags drift --private-key "$RUNNER_TEMP/ssh-key" | tee "$RUNNER_TEMP/drift.log"
+          if grep -Eq 'changed=[1-9]' "$RUNNER_TEMP/drift.log"; then
+            echo "::error::Drift detected in $TARGET_ENV: a node differs from Git. See the diff above."
+            exit 1
+          fi
+
+      - name: Remove the SSH key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/ssh-key"
