@@ -16,8 +16,12 @@ FACTS = [
     "scripts/github-setup.sh", "scripts/get-kubeconfig.sh", "scripts/install-tools.sh",
     "ansible/ops.yml", "release.yaml", "env.yaml",
 ]
-SECTIONS = ["overview", "architecture", "environments", "setup", "operations", "promotion",
-            "guard-rails", "demo", "troubleshooting"]
+SECTIONS = ["overview", "status", "concepts", "architecture", "environments", "layout", "switch", "before",
+            "setup", "verify", "operations", "promotion", "secrets", "guard-rails", "contributing", "manual",
+            "demo", "troubleshooting", "limitations"]
+# Onboarding topics both documents must cover.
+TOPICS = ["AUTOMATION_ENABLED", "k8s-demo-promoter", "ssh-keygen", "ARGOCD_ADMIN_PASSWORD", "SSH_PRIVATE_KEY",
+          "PROMOTER_PRIVATE_KEY", "registry.k8s.io", "--dry-run", "confirm_reset", "docs/VERSIONS.md"]
 # Assembled from pieces so this file does not match its own check.
 FORBIDDEN = re.compile("|".join(["Clau" + "de", "Anthro" + "pic", "super" + "powers", "agen" + "tic",
                                  "Co-Auth" + "ored-By"]), re.IGNORECASE)
@@ -67,15 +71,19 @@ class PagesGuideTest(unittest.TestCase):
         self.assertIn("prefers-color-scheme: dark", self.html)
 
     def test_page_states_the_plan(self):
-        for fact in FACTS:
+        for fact in FACTS + TOPICS:
             self.assertIn(fact, self.html)
+
+    def test_navigation_links_every_section(self):
+        for section in SECTIONS:
+            self.assertIn(f'href="#{section}"', self.html)
 
 
 class ReadmeTest(unittest.TestCase):
     def test_readme_states_the_plan_and_links_the_guide(self):
         text = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("https://haison8x.github.io/k8s-demo/", text)
-        for fact in FACTS:
+        for fact in FACTS + TOPICS:
             self.assertIn(fact, text)
 
 

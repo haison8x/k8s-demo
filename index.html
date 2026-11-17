@@ -65,6 +65,8 @@
            overflow-x: auto; }
   figure svg { width: 100%; min-width: 640px; height: auto; display: block; }
   td code { overflow-wrap: normal; white-space: nowrap; }
+  ol.steps ol { padding-left: 22px; margin: 6px 0; }
+  section ul { padding-left: 22px; }
   figcaption { color: var(--muted); font-size: 14px; margin-top: 6px; }
   .flow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 12px 0; }
   .flow span.step { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font-size: 14px; }
@@ -82,9 +84,11 @@
   <div class="inner">
     <strong>k8s-demo</strong>
     <nav aria-label="Sections">
-      <a href="#overview">Overview</a><a href="#architecture">Architecture</a><a href="#environments">Environments</a>
-      <a href="#setup">Setup</a><a href="#operations">Operations</a><a href="#promotion">Promotion</a>
-      <a href="#guard-rails">Guard rails</a><a href="#demo">Demo</a><a href="#troubleshooting">Troubleshooting</a>
+      <a href="#overview">Overview</a><a href="#status">Status</a><a href="#concepts">Concepts</a><a href="#architecture">Architecture</a>
+      <a href="#environments">Environments</a><a href="#layout">Layout</a><a href="#switch">Switch</a><a href="#before">Before you start</a>
+      <a href="#setup">Setup</a><a href="#verify">Check</a><a href="#operations">Operations</a><a href="#promotion">Promotion</a>
+      <a href="#secrets">Secrets</a><a href="#guard-rails">Guard rails</a><a href="#contributing">Contributing</a>
+      <a href="#manual">By hand</a><a href="#demo">Demo</a><a href="#troubleshooting">Troubleshooting</a><a href="#limitations">Limitations</a>
     </nav>
   </div>
 </header>
@@ -94,7 +98,8 @@
   <h1>Three Kubernetes clusters, run from Git</h1>
   <p class="lead">This repository builds a <span class="pill dev">dev</span> <span class="pill staging">staging</span>
     <span class="pill prod">prod</span> set of on-premises Kubernetes clusters and everything that runs on them.
-    After a one-time setup, every change is a pull request.</p>
+    After a one-time setup, every change is a pull request. This page is written for people new to the project:
+    read it top to bottom once, then use the menu.</p>
   <div class="cards">
     <div class="card"><h3>Ansible</h3><p>Builds each cluster with kubeadm: HA control plane behind a kube-vip address, Calico networking. Runs from GitHub Actions on a runner inside the LAN.</p></div>
     <div class="card"><h3>Argo CD</h3><p>One per cluster. Reconciles MetalLB, F5 NGINX Ingress, Kyverno, itself and the demo app from <code>gitops/clusters/&lt;env&gt;</code>.</p></div>
@@ -103,6 +108,41 @@
   </div>
   <p>The demo app is nginx showing <strong>K8s Demo</strong>, the environment, the release version and the pod that answered:
     <code>http://dev.k8sdemo.vn</code>, <code>http://staging.k8sdemo.vn</code>, <code>http://k8sdemo.vn</code>.</p>
+</section>
+
+<section id="status">
+  <h2>Current status</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Item</th><th>State</th></tr>
+    <tr><td>Code on <code>main</code></td><td>Complete; every check in <code>scripts/validate.sh</code> passes</td></tr>
+    <tr><td>GitHub Actions</td><td><b>Off</b>: the variable <code>AUTOMATION_ENABLED</code> is not set (see <a href="#switch">Automation switch</a>)</td></tr>
+    <tr><td>GitHub settings (ruleset, environments, secrets, Pages)</td><td>Not applied yet: run <code>scripts/github-setup.sh</code></td></tr>
+    <tr><td>GitHub App <code>k8s-demo-promoter</code></td><td>Not created yet</td></tr>
+    <tr><td>Servers, ops runner, clusters</td><td>Not built yet</td></tr>
+    <tr><td>SSH keys</td><td>Placeholder keys exist only on the owner's workstation (<code>~/.ssh/k8s-demo/</code>); replace them before use</td></tr>
+  </table></div>
+  <div class="note">Nothing touches a server until a person turns automation on <b>and</b> presses the <b>ansible</b> button.</div>
+</section>
+
+<section id="concepts">
+  <h2>Read this first: the ideas in two minutes</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Term</th><th>What it means here</th></tr>
+    <tr><td>IaC / GitOps</td><td>Every server setting and every Kubernetes object is a file in this repository. You change the system by merging a pull request, never by typing commands on a server.</td></tr>
+    <tr><td>kubeadm</td><td>The official tool that turns plain Ubuntu machines into a Kubernetes cluster. Ansible calls it.</td></tr>
+    <tr><td>Control plane / worker</td><td>Control planes run the Kubernetes brain (API server, etcd, scheduler); workers run the applications. Three control planes survive the loss of one.</td></tr>
+    <tr><td>kube-vip, VIP</td><td>A virtual IP (<code>.100</code> in each subnet) that always points at a healthy control plane, so <code>kubectl</code> keeps working when one control plane is down.</td></tr>
+    <tr><td>Calico</td><td>The pod network (CNI): gives each pod an address in <code>10.244.0.0/16</code> and routes traffic between nodes.</td></tr>
+    <tr><td>MetalLB</td><td>Gives <code>LoadBalancer</code> services a real LAN address from the pool <code>.200–.229</code>, which cloud providers would normally do.</td></tr>
+    <tr><td>F5 NGINX Ingress Controller</td><td>The single entry point on <code>.200</code>: routes <code>http://&lt;host&gt;</code> to the right service by host name.</td></tr>
+    <tr><td>Argo CD</td><td>Runs inside each cluster, watches this repository and makes the cluster match it. It also undoes manual changes (self-healing).</td></tr>
+    <tr><td>App of apps, sync waves</td><td>Ansible creates one <i>root</i> Argo CD Application per cluster pointing at <code>gitops/clusters/&lt;env&gt;/</code>; that folder lists the other Applications, installed in order (wave 0, 1, 2…).</td></tr>
+    <tr><td>Kustomize overlay</td><td><code>base/</code> holds what every environment shares; <code>overlays/&lt;env&gt;/</code> holds the differences.</td></tr>
+    <tr><td>Kyverno</td><td>A policy engine. Here it rejects any object labelled for a different environment than the cluster's own.</td></tr>
+    <tr><td>Self-hosted runner</td><td>A small VM in the LAN (<code>ops1</code>) that runs GitHub Actions jobs, because GitHub's own runners cannot reach private servers.</td></tr>
+    <tr><td>GitHub environment</td><td>A named set of secrets plus rules (for example, "prod needs an approval") that a workflow job must pass through.</td></tr>
+    <tr><td>CODEOWNERS, ruleset</td><td>GitHub rules: changes to staging, prod and shared files need a review from a listed owner; <code>main</code> only changes through pull requests with a green <b>validate</b> check.</td></tr>
+  </table></div>
 </section>
 
 <section id="architecture">
@@ -160,9 +200,48 @@
     <tr><th>Layer</th><th>Lives in</th><th>Applied by</th><th>Trigger</th></tr>
     <tr><td>Nodes, kubeadm, kube-vip, Calico, first Argo CD install, cluster identity</td><td><code>ansible/</code></td><td>Ansible on the ops runner</td><td><b>ansible</b> workflow; prod waits for approval</td></tr>
     <tr><td>Everything inside a cluster, including Argo CD itself</td><td><code>gitops/</code></td><td>that cluster's Argo CD</td><td>merge to <code>main</code></td></tr>
-    <tr><td>Node drift detection</td><td><code>ansible/</code> in check mode</td><td>ops runner</td><td><b>drift</b> workflow, nightly 02:00</td></tr>
-    <tr><td>GitHub settings</td><td><code>scripts/github-setup.sh</code></td><td>the owner</td><td>once</td></tr>
+    <tr><td>Node drift detection</td><td><code>ansible/</code> in check mode</td><td>ops runner</td><td><b>drift</b> workflow, nightly 02:00 (Asia/Ho_Chi_Minh)</td></tr>
+    <tr><td>Promotion dev → staging → prod</td><td><code>release.yaml</code> files</td><td><b>promote</b> workflow</td><td>button, opens a pull request</td></tr>
+    <tr><td>GitHub settings</td><td><code>scripts/github-setup.sh</code></td><td>the repository owner</td><td>once</td></tr>
   </table></div>
+
+  <h3>What <code>ansible/site.yml</code> does, in order</h3>
+  <ol class="steps">
+    <li><b>Pre-flight</b> (every node): the inventory folder, the node's subnet and the marker file <code>/etc/k8s-demo/env</code> must all name
+      the same environment, otherwise the whole run stops before anything changes.</li>
+    <li><b>Common</b> (every node): proxy for apt and containerd, hostname, <code>/etc/hosts</code>, swap off, kernel modules and sysctl,
+      containerd with the systemd cgroup driver, kubelet/kubeadm/kubectl from <code>pkgs.k8s.io</code> (held at the pinned minor version).</li>
+    <li><b>Control plane</b>: on a new cluster, checks that the VIP and the MetalLB pool are unused; starts kube-vip; <code>kubeadm init</code>
+      on the first control plane; installs Calico; joins the other control planes. A node whose earlier join failed halfway is reset and joined again.</li>
+    <li><b>Workers</b>: join the cluster.</li>
+    <li><b>Hand-over to Argo CD</b> (first control plane): writes <code>kube-system/cluster-identity</code>, installs Argo CD if it is missing,
+      sets the admin password from the GitHub secret, and applies the root Application. From here on Argo CD owns everything inside the cluster.</li>
+  </ol>
+  <p>Running it again is safe: finished steps are skipped.</p>
+
+  <h3>What Argo CD installs, in order</h3>
+  <div class="table-wrap"><table>
+    <tr><th>Wave</th><th>Application</th><th>Source</th></tr>
+    <tr><td>0</td><td><code>metallb</code></td><td>Helm chart <code>metallb</code> 0.16.2</td></tr>
+    <tr><td>1</td><td><code>metallb-config</code></td><td><code>gitops/platform/metallb/config/overlays/&lt;env&gt;</code> (address pool)</td></tr>
+    <tr><td>2</td><td><code>kyverno</code></td><td>Helm chart <code>kyverno</code> 3.10.0 + <code>gitops/platform/kyverno/values.yaml</code></td></tr>
+    <tr><td>3</td><td><code>kyverno-policies</code></td><td><code>gitops/platform/kyverno/policies</code></td></tr>
+    <tr><td>4</td><td><code>nginx-ingress</code></td><td>Helm chart <code>nginx-ingress</code> 2.8.1 + <code>gitops/platform/nginx-ingress/values*.yaml</code></td></tr>
+    <tr><td>5</td><td><code>argocd</code></td><td><code>gitops/platform/argocd/overlays/&lt;env&gt;</code> (Argo CD manages itself)</td></tr>
+    <tr><td>6</td><td><code>demo-app</code></td><td><code>gitops/apps/demo-app/overlays/&lt;env&gt;</code></td></tr>
+  </table></div>
+  <p>Every Application has automatic sync with <code>prune</code> and <code>selfHeal</code>: what is in Git is what runs.</p>
+
+  <h3>How a change reaches a cluster</h3>
+  <div class="flow">
+    <span class="step">Edit a file</span><span class="arrow">→</span>
+    <span class="step">Pull request</span><span class="arrow">→</span>
+    <span class="step"><b>validate</b> (CI)</span><span class="arrow">→</span>
+    <span class="step">Review if needed</span><span class="arrow">→</span>
+    <span class="step">Merge to <code>main</code></span><span class="arrow">→</span>
+    <span class="step">Argo CD notices (≈3 min, or Refresh)</span><span class="arrow">→</span>
+    <span class="step">Cluster updated</span>
+  </div>
 </section>
 
 <section id="environments">
@@ -179,50 +258,168 @@
     <tr><td>Argo CD</td><td>argocd.dev.k8sdemo.vn</td><td>argocd.staging.k8sdemo.vn</td><td>argocd.k8sdemo.vn</td></tr>
     <tr><td>Demo replicas</td><td>1</td><td>2</td><td>3</td></tr>
   </table></div>
-  <p>Every cluster uses pod CIDR <code>10.244.0.0/16</code> and service CIDR <code>10.96.0.0/12</code> (the office LAN uses 192.168.x.x).
-     Outbound traffic goes through <code>proxy.mycompany.com:3128</code>. Server VLANs use static addresses only, with no DHCP.
+  <p>Every cluster uses pod CIDR <code>10.244.0.0/16</code> and service CIDR <code>10.96.0.0/12</code> (chosen so they do not overlap the office LAN,
+     which uses 192.168.x.x). Outbound traffic goes through <code>proxy.mycompany.com:3128</code>. Server VLANs use static addresses only, with no DHCP.
      The ops runner ops1 is at <code>172.20.9.5</code>. All values live in <code>ansible/inventories/&lt;env&gt;/group_vars/all.yml</code>
      and the matching overlays; CI fails if the two disagree.</p>
+
+  <h3>Servers to prepare</h3>
+  <div class="table-wrap"><table>
+    <tr><th>Role</th><th>Count</th><th>Suggested size</th></tr>
+    <tr><td>Control planes</td><td>1 dev + 3 staging + 3 prod = 7</td><td>2 vCPU, 4 GB RAM, 40 GB disk</td></tr>
+    <tr><td>Workers</td><td>1 dev + 2 staging + 3 prod = 6</td><td>2 vCPU, 4 GB RAM, 40 GB disk</td></tr>
+    <tr><td>Ops runner <code>ops1</code></td><td>1</td><td>2 vCPU, 2 GB RAM, 20 GB disk</td></tr>
+  </table></div>
+  <p>kubeadm refuses to run with less than 2 vCPU and 2 GB RAM. All servers run Ubuntu 24.04 (fresh install, nothing else on it).</p>
+</section>
+
+<section id="layout">
+  <h2>Repository layout</h2>
+<pre><code>ansible/
+  ansible.cfg, requirements.yml         Ansible settings and collections (no default inventory on purpose)
+  group_vars/all/common.yml             settings shared by every environment (SSH user, CIDRs, proxy, Git repo)
+  group_vars/all/versions.yml           Kubernetes, kube-vip and Calico versions
+  inventories/&lt;env&gt;/hosts.yml           the nodes of one environment
+  inventories/&lt;env&gt;/group_vars/all.yml  subnet, VIP, MetalLB range, proxy, host names of one environment
+  inventories/ops/                      the runner VM
+  roles/                                preflight, common, kube_vip, control_plane, worker, argocd_bootstrap, ops_runner
+  site.yml  reset.yml  ops.yml          build/converge, wipe, set up the runner
+gitops/
+  clusters/&lt;env&gt;/                       Argo CD Applications of one cluster (root app path)
+  platform/argocd/                      Argo CD install (base) + per-environment overlay (banner, proxy, ingress)
+  platform/metallb/config/              address pool per environment
+  platform/nginx-ingress/               Helm values (+ fixed ingress IP per environment)
+  platform/kyverno/                     Helm values and the environment policy
+  apps/demo-app/base/                   namespace, deployment, service, ingress, nginx page template
+  apps/demo-app/overlays/&lt;env&gt;/         env.yaml = environment settings, release.yaml = promotable release
+scripts/
+  validate.sh                           every check CI runs
+  install-tools.sh                      pinned toolchain in ~/.venvs/k8s-demo and ~/.local/bin (no sudo)
+  github-setup.sh                       one-time GitHub settings
+  get-kubeconfig.sh                     fetch one environment's kubeconfig into its own file
+  promote.sh                            used by the promote workflow
+  env-guard.py                          cross-checks inventories, overlays and pull request diffs
+  smoke-demo-page.sh                    renders the demo page in Docker
+tests/                                  repository, Ansible, policy and smoke tests
+.github/workflows/                      validate, ansible, drift, promote
+.github/CODEOWNERS                      who must review which paths
+docs/VERSIONS.md                        every pinned version and where it is pinned</code></pre>
+</section>
+
+<section id="switch">
+  <h2>Automation switch</h2>
+  <p>Every workflow (<b>validate</b>, <b>ansible</b>, <b>drift</b>, <b>promote</b>) is <b>off</b> until the repository variable
+    <code>AUTOMATION_ENABLED</code> is <code>true</code>. Pushing the repository runs nothing, and skipped jobs count as passed checks.</p>
+<pre><code>gh variable set AUTOMATION_ENABLED --body true --repo haison8x/k8s-demo   # on
+gh variable delete AUTOMATION_ENABLED --repo haison8x/k8s-demo           # off</code></pre>
+  <p>Or use Settings → Secrets and variables → Actions → Variables. Turning it off also stops the nightly drift check; it does not stop
+    Argo CD, which keeps syncing the clusters from <code>main</code>.</p>
+</section>
+
+<section id="before">
+  <h2>Before you start</h2>
+  <h3>Access you need</h3>
+  <ul>
+    <li>Admin rights on the GitHub repository <code>haison8x/k8s-demo</code> (for <code>github-setup.sh</code> and the GitHub App), or write access to contribute.</li>
+    <li>SSH access as user <code>haison</code> (passwordless sudo) to the servers of the environment you work on.</li>
+    <li>A workstation in the LAN: Windows with <b>WSL2 (Ubuntu)</b>, or Linux.</li>
+  </ul>
+  <h3>Tools on your workstation</h3>
+<pre><code>sudo apt-get install -y git curl openssl python3   # basic tools (once)
+# GitHub CLI: https://cli.github.com  then:
+gh auth login
+git clone https://github.com/haison8x/k8s-demo.git ~/k8s-demo &amp;&amp; cd ~/k8s-demo
+bash scripts/install-tools.sh                     # Ansible, kubectl, linters... pinned, no sudo
+export PATH="$HOME/.venvs/k8s-demo/bin:$HOME/.local/bin:$PATH"   # add this line to ~/.bashrc</code></pre>
+  <div class="note">Clone <b>inside your Linux home directory</b>, not under <code>/mnt/c</code>: Ansible ignores <code>ansible.cfg</code> in
+    world-writable folders, and SSH rejects private keys with open permissions. Docker is only needed for the page smoke test in <code>scripts/validate.sh</code>.</div>
+
+  <h3>Values you may need to change</h3>
+  <p>All values are plain text; CI fails when two files disagree, so change every place in one pull request.</p>
+  <div class="table-wrap"><table>
+    <tr><th>Value</th><th>Where</th></tr>
+    <tr><td>SSH user (<code>haison</code>)</td><td><code>ansible/group_vars/all/common.yml</code></td></tr>
+    <tr><td>Node names and addresses</td><td><code>ansible/inventories/&lt;env&gt;/hosts.yml</code></td></tr>
+    <tr><td>Subnet, VIP, MetalLB range, ingress IP</td><td><code>ansible/inventories/&lt;env&gt;/group_vars/all.yml</code>, <code>gitops/platform/metallb/config/overlays/&lt;env&gt;/ip-pool.yaml</code>, <code>gitops/platform/nginx-ingress/values-&lt;env&gt;.yaml</code></td></tr>
+    <tr><td>Proxy</td><td><code>ansible/inventories/&lt;env&gt;/group_vars/all.yml</code>, <code>ansible/inventories/ops/group_vars/all.yml</code>, <code>gitops/platform/argocd/overlays/&lt;env&gt;/proxy-env-*.yaml</code></td></tr>
+    <tr><td>Host names (<code>*.k8sdemo.vn</code>)</td><td><code>ansible/inventories/&lt;env&gt;/group_vars/all.yml</code>, <code>gitops/apps/demo-app/overlays/&lt;env&gt;/env.yaml</code>, <code>gitops/platform/argocd/overlays/&lt;env&gt;/</code></td></tr>
+    <tr><td>Reviewers (<code>haison8x</code>, <code>haison9x</code>)</td><td><code>.github/CODEOWNERS</code>, <code>scripts/github-setup.sh</code> (<code>REVIEWERS</code>)</td></tr>
+    <tr><td>Repository URL</td><td><code>ansible/group_vars/all/common.yml</code>, <code>gitops/clusters/&lt;env&gt;/*.yaml</code>, <code>ansible/inventories/ops/group_vars/all.yml</code>, <code>scripts/github-setup.sh</code> (<code>REPO</code>)</td></tr>
+    <tr><td>Versions</td><td><code>docs/VERSIONS.md</code> lists each one and where it is pinned</td></tr>
+  </table></div>
+
+  <h3 id="proxy-allow">What the proxy must allow</h3>
+  <ul>
+    <li>Packages: <code>pkgs.k8s.io</code> and the Ubuntu mirrors.</li>
+    <li>Git and manifests: <code>github.com</code>, <code>raw.githubusercontent.com</code>, <code>objects.githubusercontent.com</code>.</li>
+    <li>Helm repositories: <code>metallb.github.io</code>, <code>kyverno.github.io</code>, <code>helm.nginx.com</code>.</li>
+    <li>Image registries: <code>registry.k8s.io</code>, <code>quay.io</code>, <code>ghcr.io</code>, <code>docker.io</code>
+      (<code>registry-1.docker.io</code>, <code>auth.docker.io</code>, <code>production.cloudflare.docker.com</code>), <code>reg.kyverno.io</code>, <code>public.ecr.aws</code>.</li>
+    <li>The ops runner also needs <code>api.github.com</code> and <code>*.actions.githubusercontent.com</code>.</li>
+  </ul>
 </section>
 
 <section id="setup">
   <h2>One-time setup</h2>
-  <div class="note">Work from WSL or Linux, in a clone inside your Linux home directory. Ansible ignores <code>ansible.cfg</code> in
-    world-writable folders such as <code>/mnt/c</code>, and SSH refuses keys with open permissions.</div>
-  <div class="note"><b>Automation switch.</b> Every workflow (validate, ansible, drift, promote) is off until the repository variable
-    <code>AUTOMATION_ENABLED</code> is <code>true</code>: pushing the repository runs nothing, and skipped jobs count as passed checks.
-    Turn it on with <code>gh variable set AUTOMATION_ENABLED --body true --repo haison8x/k8s-demo</code>
-    (or Settings → Secrets and variables → Actions → Variables), and off again with <code>gh variable delete AUTOMATION_ENABLED --repo haison8x/k8s-demo</code>.</div>
+  <div class="note">Do the steps in this order. Steps 1–5 change nothing on a server; step 7 builds the clusters.</div>
   <ol class="steps">
+    <li><b>SSH keys.</b> One key pair per environment plus one for the runner. Replace the placeholder keys:
+<pre><code>mkdir -p ~/.ssh/k8s-demo &amp;&amp; chmod 700 ~/.ssh/k8s-demo
+for k in dev staging prod ops; do ssh-keygen -t ed25519 -N "" -C "k8s-demo-$k" -f ~/.ssh/k8s-demo/$k; done</code></pre>
+      The private keys never go into Git; <code>github-setup.sh</code> copies them into GitHub environment secrets.</li>
     <li><b>Servers and network.</b> Ubuntu 24.04 everywhere, addresses as in the table, user <code>haison</code> with passwordless sudo.
       Add <code>~/.ssh/k8s-demo/&lt;env&gt;.pub</code> to <code>~haison/.ssh/authorized_keys</code> on that environment's servers
-      (<code>ops.pub</code> on ops1). Firewall: dev and staging cannot reach prod; ops1 reaches every subnet on SSH; the presenter laptop
-      reaches each ingress IP on port 80 and the prod VIP on 6443.</li>
-    <li><b>GitHub App.</b> Create <code>k8s-demo-promoter</code> (Settings → Developer settings → GitHub Apps) with repository permissions
-      <i>Contents</i> and <i>Pull requests</i> set to read and write. Install it on this repository, note the Client ID and download a private key.</li>
-    <li><b>GitHub settings.</b> Run once as a repository admin:
+      (<code>ops.pub</code> on ops1), for example <code>ssh-copy-id -i ~/.ssh/k8s-demo/dev.pub haison@172.20.2.5</code>.
+      Firewall: dev and staging cannot reach prod; ops1 reaches every subnet on SSH; the presenter laptop
+      reaches each ingress IP on port 80 and the prod VIP on 6443. Make sure nothing uses the VIP (<code>.100</code>) or the MetalLB range
+      (<code>.200–.229</code>) of each subnet, and that the nodes of one environment share one layer-2 network (kube-vip and MetalLB answer ARP).</li>
+    <li><b>GitHub App <code>k8s-demo-promoter</code></b>. It opens the promotion pull requests, because pull requests opened by the default
+      workflow token do not start CI.
+      <ol>
+        <li>GitHub → your avatar → Settings → Developer settings → GitHub Apps → <b>New GitHub App</b>.</li>
+        <li>Name <code>k8s-demo-promoter</code>, homepage <code>https://github.com/haison8x/k8s-demo</code>, untick <b>Webhook → Active</b>.</li>
+        <li>Repository permissions: <i>Contents</i> <b>Read and write</b>, <i>Pull requests</i> <b>Read and write</b> (Metadata read-only is added automatically).</li>
+        <li>"Where can this GitHub App be installed?": <b>Only on this account</b>. Create it.</li>
+        <li>Note the <b>Client ID</b>; <b>Generate a private key</b> (a <code>.pem</code> file is downloaded).</li>
+        <li><b>Install App</b> → only the repository <code>k8s-demo</code>.</li>
+      </ol></li>
+    <li><b>GitHub settings.</b> Preview first, then apply, as a repository admin:
 <pre><code>gh auth login
+bash scripts/github-setup.sh --dry-run
 bash scripts/github-setup.sh --promoter-client-id &lt;CLIENT_ID&gt; --promoter-key-file &lt;key.pem&gt;</code></pre>
-      It creates the ruleset on <code>main</code>, the environments (<code>dev</code>, <code>staging</code>, <code>prod</code> and their <code>-drift</code> twins),
-      their secrets and GitHub Pages, and prints each Argo CD admin password once. Add <code>--dry-run</code> to preview.</li>
-    <li><b>Runner.</b> Install the toolchain and register ops1 as the self-hosted runner:
-<pre><code>bash scripts/install-tools.sh
-export PATH="$HOME/.venvs/k8s-demo/bin:$HOME/.local/bin:$PATH"
-ansible-playbook -i ansible/inventories/ops/hosts.yml ansible/ops.yml --private-key ~/.ssh/k8s-demo/ops \
-  -e runner_registration_token=$(gh api -X POST repos/haison8x/k8s-demo/actions/runners/registration-token --jq .token)</code></pre></li>
-    <li><b>Turn automation on</b> once the steps above are done: <code>gh variable set AUTOMATION_ENABLED --body true --repo haison8x/k8s-demo</code>.</li>
+      It sets the read-only workflow token and fork approval, creates the <code>main-protection</code> ruleset, invites <code>haison9x</code>
+      with write access (accept the invitation), creates the environments <code>dev</code>, <code>staging</code>, <code>prod</code> and their
+      <code>-drift</code> twins (prod needs an approval), stores the secrets and enables GitHub Pages. It prints each Argo CD admin password
+      <b>once</b>: store them in your password manager. It is safe to run again; existing passwords are kept. Delete the downloaded <code>.pem</code> afterwards.</li>
+    <li><b>Runner.</b> Register ops1 as the self-hosted runner:
+<pre><code>ansible-playbook -i ansible/inventories/ops/hosts.yml ansible/ops.yml --private-key ~/.ssh/k8s-demo/ops \
+  -e runner_registration_token=$(gh api -X POST repos/haison8x/k8s-demo/actions/runners/registration-token --jq .token)</code></pre>
+      ops1 then appears under Settings → Actions → Runners with the label <code>k8s-demo-ops</code>.</li>
+    <li><b>Turn automation on</b>: <code>gh variable set AUTOMATION_ENABLED --body true --repo haison8x/k8s-demo</code>.</li>
     <li><b>Build the clusters.</b> Actions → <b>ansible</b> → Run workflow: env <code>dev</code>, playbook <code>site</code>.
-      Then <code>staging</code>, then <code>prod</code>; the prod run waits for an approval. The first run checks that the VIP and the
-      MetalLB pool are unused before <code>kubeadm init</code>.</li>
-    <li><b>Name resolution</b> on the presenter laptop (<code>C:\Windows\System32\drivers\etc\hosts</code>) or in LAN DNS:
+      <a href="#verify">Check dev</a>, then <code>staging</code>, then <code>prod</code>; the prod run waits for an approval. The first run checks that the VIP and the
+      MetalLB pool are unused before <code>kubeadm init</code>. Expect roughly 15–30 minutes for a first build.</li>
+    <li><b>Name resolution</b> on the presenter laptop (<code>C:\Windows\System32\drivers\etc\hosts</code>, edited as administrator) or in LAN DNS:
 <pre><code>172.20.2.200 dev.k8sdemo.vn argocd.dev.k8sdemo.vn
 172.20.1.200 staging.k8sdemo.vn argocd.staging.k8sdemo.vn
 172.20.0.200 k8sdemo.vn argocd.k8sdemo.vn</code></pre></li>
-    <li><b>kubectl</b> (optional). Each environment gets its own file, never merged into <code>~/.kube/config</code>:
+    <li><b>kubectl</b> (optional). Each environment gets its own file and context <code>k8s-demo-&lt;env&gt;</code>, never merged into <code>~/.kube/config</code>:
 <pre><code>scripts/get-kubeconfig.sh prod
 export KUBECONFIG=~/.kube/k8s-demo-prod.kubeconfig
 kubectl get nodes</code></pre></li>
+    <li><b>Argo CD UI</b>: <code>http://argocd.&lt;env&gt;.k8sdemo.vn</code> (prod: <code>http://argocd.k8sdemo.vn</code>), user <code>admin</code>, password from step 4.</li>
   </ol>
+</section>
+
+<section id="verify">
+  <h2>Check that it works</h2>
+<pre><code>export KUBECONFIG=~/.kube/k8s-demo-dev.kubeconfig
+kubectl get nodes                                  # every node Ready
+kubectl get pods -A | grep -vE 'Running|Completed' # nothing left but the header
+kubectl -n argocd get applications                 # every application Synced and Healthy
+kubectl get svc -A | grep LoadBalancer             # nginx-ingress has EXTERNAL-IP 172.20.2.200
+curl -H 'Host: dev.k8sdemo.vn' http://172.20.2.200 # the K8s Demo page</code></pre>
+  <p>The page shows the environment banner, <b>K8s Demo</b>, the release version and message, and the name of the pod that answered.</p>
 </section>
 
 <section id="operations">
@@ -236,8 +433,10 @@ kubectl get nodes</code></pre></li>
     <tr><td>Add a node</td><td>Add it to <code>ansible/inventories/&lt;env&gt;/hosts.yml</code>, merge, run <b>ansible</b> with limit <code>&lt;first control plane&gt;,&lt;new node&gt;</code></td><td>The node joins (the first control plane issues the join token)</td></tr>
     <tr><td>Rebuild an environment</td><td><b>ansible</b> with playbook <code>reset</code> and confirm = the env name, then <code>site</code></td><td>The cluster is wiped and rebuilt from Git</td></tr>
     <tr><td>Investigate drift</td><td>Open the failed <b>drift</b> run; the diff shows what changed on which node</td><td>Re-run <b>ansible</b> <code>site</code>, or put the change in Git</td></tr>
+    <tr><td>Pause all automation</td><td><code>gh variable delete AUTOMATION_ENABLED --repo haison8x/k8s-demo</code></td><td>Workflows are skipped; Argo CD keeps syncing</td></tr>
   </table></div>
-  <p>Component versions are listed in <code>docs/VERSIONS.md</code>.</p>
+  <p><code>APP_MESSAGE</code> in <code>release.yaml</code> must not contain quotes, <code>$</code>, <code>;</code>, braces or backslashes
+    (it is inserted into the nginx configuration). Component versions are listed in <code>docs/VERSIONS.md</code>.</p>
 </section>
 
 <section id="promotion">
@@ -259,6 +458,24 @@ kubectl get nodes</code></pre></li>
     code owner review. Keep anything that should roll out gradually in <code>release.yaml</code> or in the per-environment Application files.</p>
 </section>
 
+<section id="secrets">
+  <h2>Secrets and access</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Secret</th><th>Stored in</th><th>Used by</th></tr>
+    <tr><td><code>SSH_PRIVATE_KEY</code></td><td>environments <code>dev</code>, <code>staging</code>, <code>prod</code> and their <code>-drift</code> twins (one key per environment)</td><td><b>ansible</b>, <b>drift</b></td></tr>
+    <tr><td><code>ARGOCD_ADMIN_PASSWORD</code></td><td>environments <code>dev</code>, <code>staging</code>, <code>prod</code></td><td><b>ansible</b>, first build only</td></tr>
+    <tr><td><code>PROMOTER_CLIENT_ID</code>, <code>PROMOTER_PRIVATE_KEY</code></td><td>repository secrets</td><td><b>promote</b></td></tr>
+  </table></div>
+  <div class="table-wrap"><table>
+    <tr><th>Who</th><th>Can</th></tr>
+    <tr><td>Anyone (public repository)</td><td>read the code and the workflow logs; open pull requests from forks (their workflows wait for approval)</td></tr>
+    <tr><td><code>haison8x</code>, <code>haison9x</code> (code owners)</td><td>approve changes to staging, prod and shared paths; approve prod <b>ansible</b> runs</td></tr>
+    <tr><td>A collaborator with write access</td><td>open pull requests; merge dev-only changes once <b>validate</b> is green</td></tr>
+  </table></div>
+  <div class="note">Workflow logs are public: secrets are masked and never printed, and admin kubeconfigs are never shown in a diff.
+    Never commit a private key, a kubeconfig or a password (<code>.gitignore</code> blocks the usual file names).</div>
+</section>
+
 <section id="guard-rails">
   <h2>Guard rails against touching the wrong environment</h2>
   <div class="table-wrap"><table>
@@ -276,6 +493,32 @@ kubectl get nodes</code></pre></li>
     <tr><td>Git and CI</td><td>One pull request may change one environment. <code>scripts/env-guard.py</code> checks hosts, IPs, proxy
       settings and Application paths against each inventory. CODEOWNERS and a ruleset protect staging, prod and shared paths.</td></tr>
   </table></div>
+</section>
+
+<section id="contributing">
+  <h2>Contributing</h2>
+  <ol class="steps">
+    <li>Create a branch: <code>git switch -c &lt;short-name&gt;</code>.</li>
+    <li>Change <b>one environment</b> per pull request (shared paths are fine on their own).</li>
+    <li>Run the checks locally (Docker is needed for the page smoke test):
+<pre><code>bash scripts/validate.sh</code></pre>
+      It runs yamllint, actionlint, shellcheck, Ansible syntax and lint, the pre-flight and reset tests, the Kyverno policy tests,
+      the page smoke test, the environment guard and the repository tests.</li>
+    <li>Push and open a pull request. <b>validate</b> must be green (when automation is on); staging, prod and shared paths need a code owner's approval.</li>
+    <li>After merge, watch the change in that environment's Argo CD.</li>
+  </ol>
+  <p>Write everything in English.</p>
+</section>
+
+<section id="manual">
+  <h2>Running Ansible by hand</h2>
+  <p>For debugging only; normal runs go through the <b>ansible</b> workflow, which adds the approval and the audit trail. From your clone:</p>
+<pre><code>export ARGOCD_ADMIN_PASSWORD='&lt;the password of this environment&gt;'   # only read on the first build
+ansible-galaxy collection install -r ansible/requirements.yml
+cd ansible
+ansible-playbook -i inventories/dev/hosts.yml site.yml --private-key ~/.ssh/k8s-demo/dev --check --diff   # dry run
+ansible-playbook -i inventories/dev/hosts.yml site.yml --private-key ~/.ssh/k8s-demo/dev                  # apply
+ansible-playbook -i inventories/dev/hosts.yml reset.yml --private-key ~/.ssh/k8s-demo/dev -e confirm_reset=dev  # wipe</code></pre>
 </section>
 
 <section id="demo">
@@ -298,25 +541,56 @@ kubectl get nodes</code></pre></li>
 
 <section id="troubleshooting">
   <h2>Troubleshooting</h2>
+  <h3>A workflow shows "skipped"</h3>
+  <p>Automation is off: set <code>AUTOMATION_ENABLED</code> to <code>true</code>. <b>ansible</b>, <b>drift</b> and <b>promote</b> also only run from <code>main</code>.</p>
+  <h3>The ansible run waits forever</h3>
+  <p>The runner ops1 is offline (Settings → Actions → Runners) or the prod run is waiting for approval (the run page shows a review button).</p>
+  <h3>Pre-flight fails: "environment marker … says 'x' but this run targets 'y'" or "… is outside 172.20.x.0/24"</h3>
+  <p>You chose the wrong environment, or the server was reused from another one. Check the inventory; to reuse a server, run
+    <code>reset</code> in its old environment first.</p>
+  <h3>"IP … is already in use on the network" on the first build</h3>
+  <p>Something on the network answers on the API VIP or a MetalLB address. Free it, or change the addresses in the inventory and the
+    matching overlays (<code>ip-pool.yaml</code>, <code>values-&lt;env&gt;.yaml</code>) in one PR.</p>
+  <h3>apt or image pulls time out</h3>
+  <p>The proxy blocks a host (see <a href="#proxy-allow">What the proxy must allow</a>). <code>kubectl get pods -A</code> shows
+    <code>ImagePullBackOff</code> with the image name.</p>
   <h3>Argo CD cannot fetch the repository or a chart</h3>
   <p>Check the proxy settings in <code>gitops/platform/argocd/overlays/&lt;env&gt;/proxy-env-*.yaml</code>; they must match the inventory
     (CI checks this). Internal names such as <code>.svc</code> and the cluster ranges must stay in <code>NO_PROXY</code>.</p>
-  <h3>"IP … is already in use" on the first build</h3>
-  <p>Something on the network answers on the API VIP or a MetalLB address. Free it, or change the addresses in the inventory and the
-    matching overlays (<code>ip-pool.yaml</code>, <code>values-&lt;env&gt;.yaml</code>) in one PR.</p>
+  <h3>An Application stays OutOfSync or Degraded</h3>
+  <p>Open it in Argo CD; the event list names the failing object. Later waves wait for earlier ones to be Healthy.</p>
+  <h3>A sync is denied by Kyverno</h3>
+  <p>The resource's <code>k8sdemo.vn/env</code> label does not match the cluster. Check that the Application points at the right overlay.</p>
   <h3>The drift run fails</h3>
   <p>Someone changed a node by hand. The run's diff names the host and file. Re-run <b>ansible</b> <code>site</code> to restore it, or
     commit the change if it should stay.</p>
-  <h3>The ansible run waits forever</h3>
-  <p>The runner ops1 is offline (Settings → Actions → Runners) or the prod run is waiting for approval (the run page shows a review button).</p>
-  <h3>A sync is denied by Kyverno</h3>
-  <p>The resource's <code>k8sdemo.vn/env</code> label does not match the cluster. Check that the Application points at the right overlay.</p>
+  <h3>http://k8sdemo.vn does not open</h3>
+  <p>Check the hosts file entry, then <code>curl -H 'Host: k8sdemo.vn' http://172.20.0.200</code>.</p>
+  <h3>Lost the Argo CD admin password</h3>
+  <p>Patch <code>argocd-secret</code> in that cluster with a new bcrypt hash in the key <code>admin.password</code> (for example
+    <code>htpasswd -nbBC 10 "" '&lt;new password&gt;' | tr -d ':\n'</code>, package <code>apache2-utils</code>), then restart
+    <code>argocd-server</code>. Also update the environment secret, although it is only read on the first build.</p>
+  <h3>validate says "this change touches more than one environment"</h3>
+  <p>Split it: one pull request per environment, shared files separately.</p>
+</section>
+
+<section id="limitations">
+  <h2>Known limitations</h2>
+  <ul>
+    <li>HTTP only: no TLS, no public DNS; access from the LAN through a hosts file or LAN DNS.</li>
+    <li>No etcd backups, monitoring or log collection.</li>
+    <li>Kyverno runs one admission replica: while that pod restarts, writes to the <code>demo</code> namespace are briefly refused.</li>
+    <li>Changing <code>kube_minor</code> or <code>calico_version</code> does not upgrade a running cluster; upgrades are a manual, planned operation (or <code>reset</code> + <code>site</code>).</li>
+    <li>Changing <code>ARGOCD_ADMIN_PASSWORD</code> after the first build has no effect.</li>
+    <li>On a host built before the environment marker existed, the first drift run reports the marker as a change.</li>
+    <li>The Kubernetes patch version and containerd come from the latest packages of their channels; only the minor version is pinned.</li>
+  </ul>
 </section>
 
 <footer>
   Source: <a href="https://github.com/haison8x/k8s-demo">github.com/haison8x/k8s-demo</a> ·
   Scripts: <code>scripts/github-setup.sh</code>, <code>scripts/get-kubeconfig.sh</code>, <code>scripts/install-tools.sh</code>,
-  <code>scripts/validate.sh</code> · Runner setup: <code>ansible/ops.yml</code>
+  <code>scripts/validate.sh</code> · Runner setup: <code>ansible/ops.yml</code> · Versions: <code>docs/VERSIONS.md</code>
 </footer>
 </main>
 
